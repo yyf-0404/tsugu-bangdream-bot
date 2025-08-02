@@ -66,13 +66,7 @@ export class Cutoff {
         }
         let cutoffData
         //如果cutoff的活动已经结束，则使用缓存
-        const time = new Date().getTime()
-        if (time < this.endAt + 1000 * 60 * 60 * 24 * 7) {
-            cutoffData = await callAPIAndCacheResponse(`${Bestdoriurl}/api/tracker/data?server=${<number>this.server}&event=${this.eventId}&tier=${this.tier}`)
-        }
-        else {
-            cutoffData = await callAPIAndCacheResponse(`${Bestdoriurl}/api/tracker/data?server=${<number>this.server}&event=${this.eventId}&tier=${this.tier}`, 1 / 0)
-        }
+        cutoffData = await callAPIAndCacheResponse(`${Bestdoriurl}/api/tracker/data?server=${<number>this.server}&event=${this.eventId}&tier=${this.tier}`)
         if (cutoffData == undefined) {
             this.isExist = false;
             return

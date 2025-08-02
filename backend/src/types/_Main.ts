@@ -62,17 +62,19 @@ async function loadMainAPI(useCache: boolean = false) {
 async function loadCutoffs() {
     const server = Server.cn
     const eventId = getPresentEvent(server).eventId
-    for (const tier of tierListOfServer[Server[server]]) {
-        const cutoff = new Cutoff(eventId, server, tier)
-        await cutoff.initFull()
-    }
+    // for (let i = 282; i <= eventId; i++) {
+        for (const tier of tierListOfServer[Server[server]]) {
+            const cutoff = new Cutoff(eventId, server, tier)
+            await cutoff.initFull()
+        }
+    // }
     logger('cutoff', "cutoff loaded")
 }
 
 logger('mainAPI', "initializing...")
 loadMainAPI(true).then(async () => {
     logger('mainAPI', "initializing done")
-    // loadMainAPI()
+    loadMainAPI()
     await loadModel()
     await initHolidays()
     loadCutoffs().then(() => {

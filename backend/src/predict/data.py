@@ -67,7 +67,7 @@ def getTimeData (timestamp, startAt, endAt):
     return [[timestamp], [[time_length / (timestamp - startAt + time_length), time_length / (endAt - timestamp + time_length)]], [date.weekday()], [date.hour], [(int)(date in cn_holidays)]]
 step_length = 12
 time_length = 2 * 60 * 60 * 1000
-presentEvent = 277
+presentEvent = 282
 maxEp = [0, 0, 559395.3037106916, 1072809.25, 3432275.0438158587, 1755539.0, 528890.8049925324, 650031.5840266235]
 def getTimeAndSequenceData(rates, startAt, endAt, eventType):
     global step_length
@@ -106,9 +106,11 @@ def getAllData(tier):
     server = 3
     inputs = [[] for i in range(8)]
     outputs = [[]]
+    inputs_test = [[] for i in range(8)]
+    outputs_test = [[]]
     weight = []
     for eventId in range(226, presentEvent):
-        print(eventId)
+        # print(eventId)
         eventData, startAt, endAt = getEventData(eventId, server)
         cutoffs = get_json_from_url(f"{Bestdoriurl}/api/tracker/data?server={server}&event={eventId}&tier={tier}")['cutoffs']
         if len(cutoffs) == 0:
@@ -122,10 +124,13 @@ def getAllData(tier):
             concatenate(tmpData, tmp)
         tmpData.extend(timeData)
         weight.extend(i / (presentEvent - eventId) for i in tmpWeight)
-        concatenate(inputs, tmpData)
-        concatenate(outputs, epData)
-        # weight.extend([1 / (cutoffs[-1]['ep'] + 1)] * (len(rates) - 1))
-    return inputs, outputs, weight
+        if eventId < 270:
+            concatenate(inputs, tmpData)
+            concatenate(outputs, epData)
+        else:
+            concatenate(inputs_test, tmpData)
+            concatenate(outputs_test, epData)
+    return inputs, outputs, inputs_test, outputs_test, weight
 def continuePredict(eventId, tier, server, rates):
     global step_length, maxEp
     eventData, startAt, endAt = getEventData(eventId, server)

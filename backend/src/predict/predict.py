@@ -6,7 +6,7 @@ import numpy as np
 from os import path
 @register_keras_serializable()
 def loss(y_true, y_pred):
-    q = 0.6
+    q = 0.5
     # err = math.exp(y_true) - math.exp(y_pred)
     err = y_true - y_pred
     return reduce_mean(maximum(q*err, (q-1)*err), axis=-1)

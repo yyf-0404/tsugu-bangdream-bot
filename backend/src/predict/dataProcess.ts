@@ -119,6 +119,9 @@ function concatenate(a: Array<Array<any> >, b: Array<Array<any> > ) {
 export function continuePredict(eventId: number, tier: number, server: Server, cutoffs: Array<{ time: number, ep: number }>) {
     const { eventData, startAt, endAt} = getEventData(eventId, server)
     const rates = processCutoffs(cutoffs, startAt)
+    if (rates.length <= stepLength) {
+        return [{ time: 0, ep: 0 }]
+    }
     const list = [], base = Math.log(maxEp[eventData[0][0][0]])
     let S = 0
     for (let i = rates.length - stepLength; i < rates.length; i++) {
