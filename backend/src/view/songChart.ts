@@ -30,7 +30,7 @@ export async function drawSongChart(songId: number, difficultyId: number, displa
         diff: difficultyName[difficultyId],
         cover: song.getSongJacketImageURL(displayedServerList)
     }, songChart as any)
-    
+
     let buffer:Buffer
     if( compress!=undefined && compress){
         buffer = await tempcanv.toBuffer('jpeg',{quality:0.7})
@@ -44,10 +44,10 @@ export async function drawSongChart(songId: number, difficultyId: number, displa
 
 export async function drawCommunitySongChart(songId: number, compress: boolean): Promise<Array<Buffer | string>> {
     const res:any = await callAPIAndCacheResponse(`${Bestdoriurl}/api/post/details?id=${songId}`)
-    if (res.result == 'false') {
+    if (!res?.result || res.result == 'false') {
         return ['获取谱面信息失败']
     }
-    if (res.post.categoryId != 'chart') {
+    if (res.post?.categoryId != 'chart') {
         return [`id${songId}对应的帖子不是谱面，请检查是否输入错误`]
     }
     const cover = res.post.song.type == 'bandori' ? (new Song(res.post.song.id)).getSongJacketImageURL() : res.post.song.cover
@@ -57,7 +57,7 @@ export async function drawCommunitySongChart(songId: number, compress: boolean):
         ...res.post,
         cover
     }, res.post.chart as any)
-    
+
     let buffer:Buffer
     if( compress!=undefined && compress){
         buffer = await tempcanv.toBuffer('jpeg',{quality:0.7})
