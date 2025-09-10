@@ -3,41 +3,34 @@ import { Card } from '@/types/Card'
 import { drawList, drawListByServerList, drawListMerge, drawListTextWithImages } from '@/components/list';
 import { drawDottedLine } from '@/image/dottedLine'
 import { drawDatablock } from '@/components/dataBlock'
-import { drawGachaDatablock } from '@/components/dataBlock/gacha'
 import { Image, Canvas } from 'skia-canvas'
-import { drawBannerImageCanvas } from '@/components/dataBlock/utils'
-import { drawTimeInList } from '@/components/list/time';
 import { drawAttributeInList } from '@/components/list/attribute'
 import { drawCharacterInList } from '@/components/list/character'
 import { statConfig } from '@/components/list/stat'
-import { drawCardListInList } from '@/components/list/cardIconList'
-import { getPresentGachaList, Gacha } from '@/types/Gacha'
 import { Server } from '@/types/Server';
 import { drawTitle } from '@/components/title'
 import { outputFinalBuffer } from '@/image/output'
-import { drawDegreeListOfEvent } from '@/components/list/degreeList';
-import { Song, getPresentSongList } from '@/types/Song'
-import { drawSongListDataBlock } from '@/components/dataBlock/songList';
-import { globalDefaultServer, serverNameFullList } from '@/config';
-import { drawSongInList, drawSongListInList, drawSongInListBig } from '@/components/list/song';
+import { Song } from '@/types/Song'
+import { drawSongInListBig } from '@/components/list/song';
 import { resizeImage, stackImage } from '@/components/utils';
 import { drawCardIcon } from '@/components/card'
-import { playerDetail } from '@/database/playerDB';
+import { eventTypeList, playerDetail } from '@/teamBuilder/types';
 import { drawText } from '@/image/text';
-import { AreaItem, AreaItemType, AreaItemTypeList } from '@/types/AreaItem';
+import { AreaItemType, AreaItemTypeList } from '@/types/AreaItem';
 import { Band } from '@/types/Band';
 import { Attribute } from '@/types/Attribute'
 import mainAPI from '@/types/_Main';
 import { Character } from '@/types/Character';
 import { drawRoundedRectWithText } from '@/image/drawRect';
-import { limit } from './calcResult';
-export async function drawMedleyDetail(player: playerDetail, server: Server, useEasyBG: boolean, compress: boolean) {
+import { medleyLimit, limit } from '@/teamBuilder/types';
+import { checkCard } from '@/teamBuilder/dataPrepare';
+export async function drawTeamBuildDetail(player: playerDetail, server: Server, useEasyBG: boolean, compress: boolean) {
     const event = new Event(player.currentEvent)
     if (!event.isExist) {
         return ['错误: 活动不存在']
     }
-    if (event.eventType != 'medley') {
-        return ['错误：活动序号' + player.currentEvent + '类型不是组曲，请使用 组曲计算+活动序号 设置正确的活动']
+    if (!eventTypeList.includes(event.eventType)) {
+        return ['错误：活动序号' + player.currentEvent + `类型为${event.eventType}，请使用 组队计算+活动序号 设置正确的活动`]
     }
     let defaultServer: Server = server
     if (!event.startAt[defaultServer]) {
@@ -136,7 +129,6 @@ export async function drawMedleyDetail(player: playerDetail, server: Server, use
     list.push(line)
     
     //成员加成
-    var cardImage = []
     list.push(drawList({
         key: '活动成员加成'
     }))
@@ -166,7 +158,7 @@ export async function drawMedleyDetail(player: playerDetail, server: Server, use
     //创建最终输出数组
 
     var all = []
-    all.push(drawTitle('查询', '组曲'))
+    all.push(drawTitle('查询', '活动'))
 
     all.push(listImage)
 
@@ -196,28 +188,17 @@ export async function drawMedleyDetail(player: playerDetail, server: Server, use
         }))
     }
     const cardIconListInList = [], rowMax = 6
-    for (var i = 0; i < cardIconList.length; i += rowMax) {
+    for (var i = 0; i < cardIconList.length && i < limit; i += rowMax) {
         cardIconListInList.push(drawListTextWithImages({
             content: cardIconList.slice(i, i + rowMax),
             spacing: 16,
             maxWidth: widthMax
         }))
     }
-    if (cardIconList.length == 0) {
+    let msg = checkCard(player, event.eventType, cardIconList.length)
+    if (msg.length > 0) {
         cardIconListInList.push(drawText({
-            text: '还没有添加卡牌呢，使用 导入配置 或者 添加卡牌 来添加吧',
-            maxWidth: widthMax
-        }))
-    }
-    else if (cardIconList.length > limit) {
-        cardIconListInList.push(drawText({
-            text: `当前卡牌数大于${limit}张，计算时间过长，无法进行组队，请使用 删除卡牌 减少几张卡吧`,
-            maxWidth: widthMax
-        }))
-    }
-    else if (!player.checkComposeTeam(songList.length)) {
-        cardIconListInList.push(drawText({
-            text: '当前卡牌过少，无法进行组队，使用 导入配置 或者 添加卡牌 来添加吧',
+            text: msg,
             maxWidth: widthMax
         }))
     }
@@ -310,21 +291,19 @@ export async function drawMedleyDetail(player: playerDetail, server: Server, use
             text: `演出`,
             textSize: 40,
             height: 60,
-            color: "#EEA6A9"
+            color: "#E675A0"
         }), 130, 0)
         ctx.drawCanvas(drawRoundedRectWithText({
             text: `技巧`,
             textSize: 40,
             height: 60,
-            color: "#C7F4FA",
-            textColor: "#7f7f7f"
+            color: "#6EB8E7"
         }), widthMax / 3 + 130, 0)
         ctx.drawCanvas(drawRoundedRectWithText({
             text: `形象`,
             textSize: 40,
             height: 60,
-            color: "#FDFAC5",
-            textColor: "#7f7f7f"
+            color: "#F6C964"
         }), widthMax / 3 * 2 + 130, 0)
         const list = [], rowMax = 5, iconWidth = 50, height = 150, spacing = 5, bouns = player.characterBouns, width = widthMax / rowMax
         for (const i in mainAPI['characters']) {
@@ -339,25 +318,23 @@ export async function drawMedleyDetail(player: playerDetail, server: Server, use
             ctx.drawCanvas(drawRoundedRectWithText({
                 text: `${(bouns[i].potential.performance * 100).toFixed(1)}% ${(bouns[i].characterTask.performance * 100).toFixed(1)}%`,
                 textSize: 25,
-                color: "#EEA6A9",
+                color: "#E675A0",
                 height: 40,
                 width: width - iconWidth - 3 * spacing,
             }), iconWidth + 2 * spacing, spacing)
             ctx.drawCanvas(drawRoundedRectWithText({
                 text: `${(bouns[i].potential.technique * 100).toFixed(1)}% ${(bouns[i].characterTask.technique * 100).toFixed(1)}%`,
                 textSize: 25,
-                color: "#C7F4FA",
+                color: "#6EB8E7",
                 height: 40,
-                width: width - iconWidth - 3 * spacing,
-                textColor: "#7f7f7f"
+                width: width - iconWidth - 3 * spacing
             }), iconWidth + 2 * spacing, height / 3 + spacing)
             ctx.drawCanvas(drawRoundedRectWithText({
                 text: `${(bouns[i].potential.visual * 100).toFixed(1)}% ${(bouns[i].characterTask.visual * 100).toFixed(1)}%`,
                 textSize: 25,
-                color: "#FDFAC5",
+                color: "#F6C964",
                 height: 40,
-                width: width - iconWidth - 3 * spacing,
-                textColor: "#7f7f7f"
+                width: width - iconWidth - 3 * spacing
             }), iconWidth + 2 * spacing, height / 3 * 2 + spacing)
             list.push(canvas)
         }

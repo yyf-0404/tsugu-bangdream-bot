@@ -57,7 +57,7 @@ export async function commandSearchComposition(mainServer: Server, useEasyBG: bo
     for (const info of result.capital) {
         info.card = new Card(info.card.cardId)
     }
-    return await drawResult(data.compositionList[0], event, useEasyBG, compress)
+    return await drawResult(data.compositionList[0], eventId, useEasyBG, compress)
 }
 
 export { router as searchCompositionRouter }

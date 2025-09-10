@@ -1,95 +1,25 @@
 import { Event } from '@/types/Event';
-import { addStat, Stat, Card, mulStat, statSum } from '@/types/Card'
-import { drawList, drawListByServerList, drawListMerge, drawListTextWithImages } from '@/components/list';
+import { statSum } from '@/types/Card'
+import { drawList, drawListMerge, drawListTextWithImages } from '@/components/list';
 import { drawDottedLine } from '@/image/dottedLine'
 import { drawDatablock } from '@/components/dataBlock'
 import { Image, Canvas } from 'skia-canvas'
 import { statConfig } from '@/components/list/stat'
-import { Server } from '@/types/Server';
 import { drawTitle } from '@/components/title'
 import { outputFinalBuffer } from '@/image/output'
 import { Song, getPresentSongList } from '@/types/Song'
 import { drawSongInListMid } from '@/components/list/song';
 import { resizeImage, stackImage } from '@/components/utils';
 import { drawCardIcon } from '@/components/card'
-import { playerDetail } from '@/database/playerDB';
 import { drawText } from '@/image/text';
-import { AreaItem, AreaItemType, AreaItemTypeList } from '@/types/AreaItem';
+import { AreaItemType } from '@/types/AreaItem';
 import { Band } from '@/types/Band';
 import { Attribute } from '@/types/Attribute'
-import { Skill } from '@/types/Skill';
-import { bruteForce, teamInfo, cardInfo } from './bruteForce';
-import { compositionResultDB } from '@/database/compositionResultDB';
-const resultDB = new compositionResultDB(process.env.MONGODB_URI ?? 'mongodb://localhost:27017/', 'tsugu-bangdream-bot')
-export const limit = 31
-export async function drawCalcResult(player: playerDetail, server: Server, useEasyBG: boolean, compress: boolean, save: boolean, description?: string) {
-    const event = new Event(player.currentEvent)
-    if (!event.isExist) {
-        return ['错误: 活动不存在']
-    }
-    if (event.eventType != 'medley') {
-        return ['错误：活动序号' + player.currentEvent + '类型不是组曲']
-    }
+import { buildResult } from '@/teamBuilder/types';
 
-    let defaultServer: Server = server
-    if (!event.startAt[defaultServer]) {
-        defaultServer = Server.jp
-    }
-    await event.initFull()
-    var list: Array<Image | Canvas> = []
-    const widthMax = 1200, line: Canvas = drawDottedLine({
-        width: widthMax,
-        height: 30,
-        startX: 5,
-        startY: 15,
-        endX: widthMax - 5,
-        endY: 15,
-        radius: 2,
-        gap: 10,
-        color: "#a8a8a8"
-    })
-
-    const songList = player.eventSongs[player.currentEvent]
-    const charts = await Promise.all(songList.map(async ({ songId, difficulty} ) => {
-        const song = new Song(songId)
-        await song.initFull()
-        return await song.getChartData(difficulty)
-    }))
-    var notes = 0
-    for (var i = 0; i < charts.length; i += 1) {
-        charts[i].init(notes)
-        notes += charts[i].count
-    }
-    if (!player.checkComposeTeam(charts.length)) {
-        return ['当前卡牌过少，无法进行组队']
-    }
-
-    const cardList: Array<cardInfo> = Object.keys(player.cardList).map(key => new cardInfo(key))
-
-    if (cardList.length > limit) {
-        return [`当前卡牌数大于${limit}张，计算时间过长，无法进行组队`]
-    }
-    for (const info of cardList) {
-        await info.initFull(event, player)
-    }
-    let calcResult
-    try {
-        calcResult = bruteForce(charts, cardList, player.getAreaItemPercent(), '')
-    }
-    catch(e) {
-        return ['计算超时，尝试减少角色数量']
-    }
-    const data: calcResult = {songList, description, ...calcResult}
-    print(data)
-    const res: Array<Buffer | string> = await drawResult(data, event, useEasyBG, compress)
-    if (save) {
-        const result = await resultDB.addResult(player.currentEvent, data)
-        res.push(`上传成功，当前活动有${result.compositionList.length}个方案`)
-    }
-    return res
-}
-
-export async function drawResult(data: calcResult, event: Event, useEasyBG: boolean, compress: boolean) {
+export async function drawResult(data: buildResult, eventId: number, useEasyBG: boolean, compress: boolean) {
+    const event = new Event(eventId)
+    event.initFull()
     const all = [], width = 1020, line: Canvas = drawDottedLine({
         width: width,
         height: 30,
@@ -212,7 +142,7 @@ export async function drawResult(data: calcResult, event: Event, useEasyBG: bool
 
     return [buffer];
 }
-export function print(res: calcResult) {
+export function print(res: buildResult) {
     console.log(res.totalScore, res.totalStat)
     console.log(res.score, res.stat)
     for (var i = 0; i < res.team.length; i += 1) {
@@ -221,19 +151,4 @@ export function print(res: calcResult) {
     }
     console.log(res.item[0], res.item[1], res.item[2])
     
-}
-
-export interface calcResult {
-    songList?: Array<{
-        songId: number,
-        difficulty: number
-    }>,
-    description?: string,
-    totalScore: number,
-    totalStat: number,
-    score: Array<number>,
-    stat: Array<number>,
-    team: Array<Array<cardInfo>>,
-    capital: Array<cardInfo>,
-    item: Object
 }

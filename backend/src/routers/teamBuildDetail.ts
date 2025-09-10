@@ -2,14 +2,14 @@ import { Server } from "@/types/Server";
 import { listToBase64 } from '@/routers/utils';
 import { isServer } from '@/types/Server';
 import { getServerByServerId } from '@/types/Server';
-import { PlayerDB, playerDetail } from "@/database/playerDB";
+import { PlayerDB } from "@/database/playerDB";
+import { playerDetail } from "@/teamBuilder/types";
 import express from 'express';
 import { body } from 'express-validator'; // Import express-validator functions
 import { middleware } from '@/routers/middleware';
 import { Request, Response } from 'express';
 import { getPresentEvent } from '@/types/Event';
-import { drawMedleyDetail } from "@/view/medleyDetail";
-import { drawCalcResult } from "@/view/calcResult";
+import { drawTeamBuildDetail } from "@/view/teamBuildDetail";
 import { Player } from "@/types/Player";
 import { Stat, Card, addStat, emptyStat } from "@/types/Card";
 import { fuzzySearch } from "@/fuzzySearch";
@@ -33,7 +33,7 @@ router.post('/',
         const { playerId, mainServer, eventId, useEasyBG, compress } = req.body;
 
         try {
-            const result = await commandMedleyDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress, eventId);
+            const result = await commandTeamBuildDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress, eventId);
             res.send(listToBase64(result));
         } catch (e) {
             console.log(e);
@@ -111,7 +111,7 @@ router.post('/importPlayerData',
         await playerDB.updateAreaItem(playerId, areaItemList)
 
         try {
-            const result = await commandMedleyDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
+            const result = await commandTeamBuildDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
             res.send(listToBase64(result));
         } catch (e) {
             console.log(e);
@@ -136,11 +136,12 @@ router.post('/updateSong',
         let player: playerDetail = await playerDB.getPlayer(playerId)
         const eventId = player?.currentEvent
         if (!eventId) {
-            res.send(listToBase64['未选择组曲活动，请发送 组曲计算+活动id'])
+            res.send(listToBase64['未选择活动，请发送 组队计算+活动id'])
+            return
         }
         await playerDB.updateSong(playerId, eventId, id, songId, difficulty)
         try {
-            const result = await commandMedleyDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
+            const result = await commandTeamBuildDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
             res.send(listToBase64(result));
         } catch (e) {
             console.log(e);
@@ -163,11 +164,12 @@ router.post('/resetSong',
         let player: playerDetail = await playerDB.getPlayer(playerId)
         const eventId = player?.currentEvent
         if (!eventId) {
-            res.send(listToBase64['未选择组曲活动，请发送 组曲计算+活动id'])
+            res.send(listToBase64['未选择活动，请发送 组队计算+活动id'])
+            return
         }
         await playerDB.resetSong(playerId, mainServer, eventId)
         try {
-            const result = await commandMedleyDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
+            const result = await commandTeamBuildDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
             res.send(listToBase64(result));
         } catch (e) {
             console.log(e);
@@ -214,7 +216,7 @@ router.post('/levelUp',
         await playerDB.updateCharacterBouns(playerId, characterBounsList)
 
         try {
-            const result = await commandMedleyDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
+            const result = await commandTeamBuildDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
             res.send(listToBase64(result));
         } catch (e) {
             console.log(e);
@@ -253,7 +255,7 @@ router.post('/levelReset',
         await playerDB.updateCharacterBouns(playerId, characterBounsList)
 
         try {
-            const result = await commandMedleyDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
+            const result = await commandTeamBuildDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
             res.send(listToBase64(result));
         } catch (e) {
             console.log(e);
@@ -287,7 +289,7 @@ router.post('/addCard',
         await playerDB.addCard(playerId, cardList)
 
         try {
-            const result = await commandMedleyDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
+            const result = await commandTeamBuildDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
             res.send(listToBase64(result));
         } catch (e) {
             console.log(e);
@@ -313,7 +315,7 @@ router.post('/delCard',
         await playerDB.delCard(playerId, cardList)
 
         try {
-            const result = await commandMedleyDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
+            const result = await commandTeamBuildDetail(playerId, getServerByServerId(mainServer), useEasyBG, compress);
             res.send(listToBase64(result));
         } catch (e) {
             console.log(e);
@@ -323,31 +325,8 @@ router.post('/delCard',
 )
 
 
-router.post('/calcResult',
-    [
-        body('playerId').isInt(), // Validation for 'playerId' field
-        body('mainServer').custom(isServer), // Custom validation for 'server' field
-        body('eventId').optional().isInt(), // eventId is optional and must be an integer if provided
-        body('useEasyBG').isBoolean(), // Validation for 'useEasyBG' field
-        body('compress').optional().isBoolean(),
-        body('save').optional().isBoolean(),
-        body('description').optional(),
-    ],
-    middleware,
-    async (req: Request, res: Response) => {
-        const { playerId, mainServer, eventId, useEasyBG, compress, save, description } = req.body;
 
-        try {
-            const result = await commandCalcResult(playerId, getServerByServerId(mainServer), useEasyBG, compress, eventId, save, description);
-            res.send(listToBase64(result));
-        } catch (e) {
-            console.log(e);
-            res.status(500).send({ status: 'failed', data: '内部错误' });
-        }
-    }
-);
-
-export async function commandMedleyDetail(playerId: number, mainServer: Server, useEasyBG: boolean, compress: boolean, eventId?: number)/*: Promise<Array<Buffer | string>>*/ {
+export async function commandTeamBuildDetail(playerId: number, mainServer: Server, useEasyBG: boolean, compress: boolean, eventId?: number)/*: Promise<Array<Buffer | string>>*/ {
     let player :playerDetail  = await playerDB.getPlayer(playerId)
     var currentEvent = player.currentEvent
     if (eventId) {
@@ -359,27 +338,8 @@ export async function commandMedleyDetail(playerId: number, mainServer: Server, 
     if (currentEvent != player.currentEvent) {
         player = await playerDB.updCurrentEvent(playerId, mainServer, currentEvent)
     }
-    return await drawMedleyDetail(player, mainServer, useEasyBG, compress)
+    return await drawTeamBuildDetail(player, mainServer, useEasyBG, compress)
 }
 
-export async function commandCalcResult(playerId: number, mainServer: Server, useEasyBG: boolean, compress: boolean, eventId?: number, save?: boolean, description?: string)/*: Promise<Array<Buffer | string>>*/ {
 
-    let player :playerDetail  = await playerDB.getPlayer(playerId)
-    var currentEvent = player.currentEvent
-    if (eventId) {
-        currentEvent = eventId
-    }
-    if (!currentEvent) {
-        currentEvent = getPresentEvent(mainServer).eventId
-    }
-    if (currentEvent != player.currentEvent) {
-        player = await playerDB.updCurrentEvent(playerId, mainServer, currentEvent)
-    }
-
-    if (!save) {
-        save = false
-    }
-    return await drawCalcResult(player, mainServer, useEasyBG, compress, save, description)
-}
-
-export { router as medleyCalRouter }
+export { router as teamBuildDetailRouter }

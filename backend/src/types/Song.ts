@@ -5,9 +5,7 @@ import { getServerByPriority, Server } from '@/types/Server'
 import mainAPI from '@/types/_Main'
 import { Bestdoriurl } from '@/config'
 import { stringToNumberArray } from '@/types/utils'
-import { duration } from 'moment'
-import { Skill } from './Skill'
-import { cardInfo } from '@/view/bruteForce'
+import { cardInfo } from '@/teamBuilder/types'
 import { assetErrorImageBuffer } from "@/image/utils";
 
 export const difficultyName = {//难度名称
@@ -357,7 +355,7 @@ export class Chart {
         this.nodes = []
         this.count = 0
     }
-    init(combo: number = 0) {
+    init(combo: number = 0, isMedley: boolean) {
         this.combo = combo
         const durationList = [3, 3.5, 4, 4.5, 5, 5.5, 5.6, 5.7, 6, 6.2, 6.4, 6.5, 6.8, 7, 7.2, 7.5, 8]
         const durationList2 = [5, 5.5, 6, 6.5, 7]
@@ -371,7 +369,7 @@ export class Chart {
         for (var i = 0; i < this.nodes.length; i += 1) {
             const node = this.nodes[i]
             combo += 1
-            this.meta.noSkill += base * getComboMod(combo, true)
+            this.meta.noSkill += base * getComboMod(combo, isMedley)
             if (node.type == 'skill') {
                 {
                     const skill = {}
@@ -383,7 +381,7 @@ export class Chart {
                                 break
                             }
                             tempCombo += 1
-                            skill[duration] += base * getComboMod(tempCombo, true)
+                            skill[duration] += base * getComboMod(tempCombo, isMedley)
                         }
                     }
                     this.meta.skill.push(skill)
@@ -400,7 +398,7 @@ export class Chart {
                                 break
                             }
                             tempCombo += 1
-                            skill[duration] += base * getComboMod(tempCombo, true) * skillMod / 200
+                            skill[duration] += base * getComboMod(tempCombo, isMedley) * skillMod / 200
                         }
                     }
                     this.meta['100+0.5p'].push(skill)
@@ -469,7 +467,7 @@ export class Chart {
         return { meta, team, capital, scoreUp: [...order.map(i => scoreUp[i]), capitalScoreUp] }
     }
 
-    getScore(cardList: Array<cardInfo>, scoreUp: Array<number>, stat: number): number {
+    getScore(cardList: Array<cardInfo>, scoreUp: Array<number>, stat: number, isMedley: boolean): number {
         const base = 3 * stat * (1 + 0.01 * (this.level - 5)) / this.count
         var result = 0, skillCount = 0, combo = this.combo, skillMod = 1, rateup = false
         const event = []
@@ -483,7 +481,7 @@ export class Chart {
             combo += 1
             if (rateup && sgn(skillMod - 2.5) < 0)
                 skillMod += 0.005
-            result += Math.floor(Math.floor(base * getComboMod(combo, true) * 1.1) * skillMod)
+            result += Math.floor(Math.floor(base * getComboMod(combo, isMedley) * 1.1) * skillMod)
             if (node.type == 'skill') {
                 if (event.length > 0) {
                     const startTime = event.at(-1).time + 0.75

@@ -12,7 +12,7 @@ import { songMetaRouter } from '@/routers/songMeta';
 import { cutoffDetailRouter } from '@/routers/cutoffDetail';
 import { cutoffListOfRecentEventRouter } from '@/routers/cutoffListOfEvent';
 import { cutoffAllRouter } from '@/routers/cutoffAll';
-import { songChartRouter } from '@/routers/songChart'; 1
+import { songChartRouter } from '@/routers/songChart';
 import { userRouter } from '@/routers/user'
 import { stationRouter } from '@/routers/station'
 import { eventPreviewRouter } from '@/routers/article/eventPreview'
@@ -20,9 +20,10 @@ import { eventReportRouter } from '@/routers/article/eventReport'
 import { eventStageRouter } from '@/routers/eventStage'
 import { songRandomRouter } from '@/routers/songRandom'
 import { fuzzySearchRouter } from '@/routers/fuzzySearch'
-import { medleyCalRouter } from '@/routers/medleyCal'
-import { topRateDetailRouter } from './routers/topRateDetail';
-import { searchCompositionRouter } from './routers/searchComposition';
+import { teamBuildDetailRouter } from '@/routers/teamBuildDetail'
+import { calcResultRouter } from './routers/calcResult';
+import { topRateDetailRouter } from '@/routers/topRateDetail';
+import { searchCompositionRouter } from '@/routers/searchComposition';
 
 import { logger } from '@/logger'
 import * as dotenv from 'dotenv';
@@ -52,7 +53,8 @@ app.use('/cutoffAll', cutoffAllRouter)
 app.use('/eventStage', eventStageRouter)
 app.use('/songRandom', songRandomRouter);
 app.use('/fuzzySearch', fuzzySearchRouter);
-app.use('/medleyCal', medleyCalRouter);
+app.use('/teamBuildDetail', teamBuildDetailRouter);
+app.use('/calcResult', calcResultRouter);
 app.use('/topRateDetail', topRateDetailRouter);
 app.use('/searchComposition', searchCompositionRouter)
 

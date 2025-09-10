@@ -47,6 +47,12 @@ export function addStat(stat: Stat, add: Stat): void {//综合力相加函数
     stat.visual += add.visual
 }
 
+export function subStat(stat: Stat, sub: Stat): void {//综合力相加函数
+    stat.performance += sub.performance
+    stat.technique += sub.technique
+    stat.visual += sub.visual
+}
+
 export function mulStat(stat: Stat, mul: Stat): Stat {//综合力相乘函数
     return {
         performance: stat.performance * mul.performance,

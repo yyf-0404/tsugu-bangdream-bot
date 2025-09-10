@@ -7,3 +7,4 @@
 *.webp -text
 *.xlsx -text
 *.ttf -text
+*.bin binary

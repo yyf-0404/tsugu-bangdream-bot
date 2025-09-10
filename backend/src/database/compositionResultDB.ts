@@ -1,8 +1,8 @@
 import { Collection, Db, MongoClient } from 'mongodb';
-import { calcResult } from '@/view/calcResult';
+import { buildResult } from '@/teamBuilder/types';
 
 export class eventCompositionResult {
-    compositionList: Array<calcResult>
+    compositionList: Array<buildResult>
     constructor() {
         this.compositionList = []
     }
@@ -36,7 +36,7 @@ export class compositionResultDB {
     await this.getCollection().insertOne({ _id: key, ...data })
     return data;
   }
-  async addResult(eventId: number, result: calcResult) {
+  async addResult(eventId: number, result: buildResult) {
     var data: eventCompositionResult = await this.getEvent(eventId)
     data.compositionList.push(result)
     const res = await this.getCollection().updateOne({ _id: eventId }, { $set: data })
