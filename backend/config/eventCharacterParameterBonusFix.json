@@ -1,0 +1,38 @@
+{
+    "254": {
+        "eventId": 254,
+        "performance": 0,
+        "technique": 0,
+        "visual": 50
+    },
+    "264": {
+        "eventId": 264,
+        "performance": 0,
+        "technique": 0,
+        "visual": 50
+    },
+    "272": {
+        "eventId": 272,
+        "performance": 0,
+        "technique": 50,
+        "visual": 0
+    },
+    "287": {
+        "eventId": 287,
+        "performance": 0,
+        "technique": 50,
+        "visual": 0
+    },
+    "294": {
+        "eventId": 294,
+        "performance": 50,
+        "technique": 0,
+        "visual": 0
+    },
+    "305": {
+        "eventId": 305,
+        "performance": 0,
+        "technique": 0,
+        "visual": 50
+    }
+}

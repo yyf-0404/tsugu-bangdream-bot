@@ -2,7 +2,7 @@ import { callAPIAndCacheResponse } from '@/api/getApi';
 import { Image, loadImage } from 'skia-canvas'
 import { downloadFileCache } from '@/api/downloadFileCache'
 import { Server, getServerByPriority } from '@/types/Server'
-import mainAPI from '@/types/_Main';
+import mainAPI, { eventCharacterParameterBonusFix } from '@/types/_Main';
 import { Attribute } from '@/types/Attribute';
 import { Character } from '@/types/Character';
 import { globalDefaultServer, Bestdoriurl } from '@/config';
@@ -214,6 +214,7 @@ export class Event {
     async getData(update: boolean = true) {
         var time = update ? 0 : 1 / 0
         var eventData = await callAPIAndCacheResponse(`${Bestdoriurl}/api/events/${this.eventId}.json`, time);
+        eventData["eventCharacterParameterBonus"] = eventData["eventCharacterParameterBonus"] ?? eventCharacterParameterBonusFix[this.eventId.toString()]
         return eventData
     }
     async getBannerImage(displayedServerList: Server[] = globalDefaultServer): Promise<Image> {

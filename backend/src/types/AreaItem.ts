@@ -1,4 +1,4 @@
-import mainAPI from '@/types/_Main';
+import mainAPI, { areaItemFix } from '@/types/_Main';
 import { Server } from '@/types/Server';
 import { Card, Stat } from '@/types/Card';
 
@@ -21,7 +21,7 @@ export class AreaItem {
     targetBandIds: Array<number>;
     constructor(areaItemId: number) {
         this.areaItemId = areaItemId
-        const areaItemData = mainAPI['areaItems'][areaItemId.toString()]
+        const areaItemData = areaItemFix[areaItemId.toString()] ?? mainAPI['areaItems'][areaItemId.toString()]
         if (areaItemData == undefined) {
             this.isExist = false;
             return

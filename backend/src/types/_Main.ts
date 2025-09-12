@@ -13,6 +13,7 @@ import {initHolidays } from '@/predict/dataProcess'
 const mainAPI: object = {}//main对象,用于存放所有api数据,数据来源于Bestdori网站
 
 //加载mainAPI
+export let cardsCNfix, skillCNfix, areaItemFix, eventCharacterParameterBonusFix, songNickname
 async function loadMainAPI(useCache: boolean = false) {
     logger('mainAPI', 'loading mainAPI...')
     const promiseAll = Object.keys(BestdoriapiPath).map(async (key) => {
@@ -29,31 +30,34 @@ async function loadMainAPI(useCache: boolean = false) {
     });
 
     await Promise.all(promiseAll);
-    const cardsCNfix = await readJSON(path.join(configPath, 'cardsCNfix.json'))
+    if (useCache) {
+        cardsCNfix = await readJSON(path.join(configPath, 'cardsCNfix.json'))
+        skillCNfix = await readJSON(path.join(configPath, 'skillsCNfix.json'))
+        areaItemFix = await readJSON(path.join(configPath, 'areaItemFix.json'))
+        eventCharacterParameterBonusFix = await readJSON(path.join(configPath, 'eventCharacterParameterBonusFix.json'))
+        try {
+            songNickname = await readExcelFile(path.join(configPath, 'nickname_song.xlsx'))
+        }
+        catch (e) {
+            logger('mainAPI', '读取nickname_song.xlsx失败')
+        }
+    }
     for (var key in cardsCNfix) {
         mainAPI['cards'][key] = cardsCNfix[key]
     }
-    const skillCNfix = await readJSON(path.join(configPath, 'skillsCNfix.json'))
     for (var key in skillCNfix) {
         mainAPI['skills'][key] = skillCNfix[key]
     }
-    const areaItemFix = await readJSON(path.join(configPath, 'areaItemFix.json'))
     for (var key in areaItemFix) {
         if (mainAPI['areaItems'][key] == undefined) {
             mainAPI['areaItems'][key] = areaItemFix[key]
         }
     }
-    try {
-        const songNickname = await readExcelFile(path.join(configPath, 'nickname_song.xlsx'))
-        for (let i = 0; i < songNickname.length; i++) {
-            const element = songNickname[i];
-            if (mainAPI['songs'][element['Id'].toString()]) {
-                mainAPI['songs'][element['Id'].toString()]['nickname'] = element['Nickname']
-            }
+    for (let i = 0; i < songNickname.length; i++) {
+        const element = songNickname[i];
+        if (mainAPI['songs'][element['Id'].toString()]) {
+            mainAPI['songs'][element['Id'].toString()]['nickname'] = element['Nickname']
         }
-    }
-    catch (e) {
-        logger('mainAPI', '读取nickname_song.xlsx失败')
     }
     logger('mainAPI', 'mainAPI loaded')
 
