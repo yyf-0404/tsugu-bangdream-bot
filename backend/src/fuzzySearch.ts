@@ -182,18 +182,20 @@ function isValidRelationStr(_relationStr: string): boolean {
 }
 export function include(source: string, target: string) {
   source = source.toLowerCase()
-  return source.includes(target) && (!/^[A-Za-z0-9]+$/.test(target) || target.length > 3) || source.split(' ').includes(target)
+  return source.includes(target) && (!/^[A-Za-z0-9]+$/.test(target) || target.length > 3) || source.split(' ').includes(target) && (!/^[A-Za-z0-9]+$/.test(target) || target.length > 1) || source == target
 }
 export function match(matches: FuzzySearchResult, target: any, numberTypeKey: string[]): boolean {
   if (!target) {
     return false;
   }
-  let match = Object.keys(matches).length > 1;
+  let match;
 
   for (var key in matches) {
-    if (key === '_number' || key === '_relationStr' || key === '_all') {
+    if (key === '_number' || key === '_all') {
       continue;
     }
+    if (match == undefined) match = true
+    if (key === '_relationStr') continue
 
     // 匹配关键词
     if (target[key] !== undefined) {
@@ -252,17 +254,15 @@ export function match(matches: FuzzySearchResult, target: any, numberTypeKey: st
       }
     }
   }
-  
+  if (match == undefined) match = false
     // 处理指定的数字类型 key，比如 songLevels
-  if (numberTypeKey.length > 0 && matches['_number'] !== undefined) {
-    let matchArray = false;
+  if (!match && numberTypeKey.length > 0 && matches['_number'] !== undefined) {
     for (let key of numberTypeKey) {
       if (matches['_number'].includes(target[key])) {
-        matchArray = true;
+        match = true;
         break
       }
     }
-    if (!matchArray) match = false
   }
 
   //如果在config中所有类型都不符合的情况下，检查 _all

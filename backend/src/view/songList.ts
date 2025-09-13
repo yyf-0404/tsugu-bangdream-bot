@@ -118,7 +118,7 @@ export function matchSongList(matches: FuzzySearchResult, displayedServerList: S
         return tempSongList
     for (let i = 0; i < songIdList.length; i++) {
         const tempSong = new Song(songIdList[i]);
-        var isMatch = match(matches, tempSong, []);
+        var isMatch = match(matches, tempSong, ['songId']);
         //如果在所有所选服务器列表中都不存在，则不输出
         var numberOfNotReleasedServer = 0;
         for (var j = 0; j < displayedServerList.length; j++) {
