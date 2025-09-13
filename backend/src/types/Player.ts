@@ -195,9 +195,10 @@ export class Player {
         }
         if (!playerData["result"] || playerData['data']['profile'] == null) {
             this.isExist = false;
+            this.initError = true;
             return
         }
-        this.isExist = true;
+        this.isExist = true; this.initError = false
         this.cache = playerData['data']['cache'];
         this.time = playerData['data']['time'];
         this.profile = playerData['data']['profile'];

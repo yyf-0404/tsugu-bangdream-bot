@@ -85,9 +85,12 @@ extern "C" EXPORT int calc1(int n, int ans, int *a, int *b, int *output) {
                 __m256i vecsk;
                 int lowmsk, pos, tans;
                 int kpos = 0;
-                while (kpos + 8 <= n) {
+                for (; kpos + 8 <= n; kpos += 8) {
                     if(++tot > she) {
                         // cout << "killed\n";
+                        for (int i = 0; i < 3; i++) {
+                            output[i] = order[2][output[i]];
+                        }
                         return calc2(n, ans, a, b, output);
                     }
                     if (f[0][i] + f[1][j] + f[2][kpos] <= ans) {
@@ -97,18 +100,16 @@ extern "C" EXPORT int calc1(int n, int ans, int *a, int *b, int *output) {
                     vecsk = _mm256_cmpeq_epi32(vecsij & vecsk, zero);
                     if ((lowmsk = _mm256_movemask_ps(_mm256_castsi256_ps(vecsk))) != 0)
                         goto jump_label;
-                    kpos += 8;
                 }
-                while (kpos < n) {
+                for (; kpos < n; ++kpos) {
                     if (f[0][i] + f[1][j] + f[2][kpos] <= ans)
                         break;
                     if ((S[i] | S[j]) & S[kpos])
                         continue;
                     ans = f[0][i] + f[1][j] + f[2][kpos];
-                    output[0] = order[2][I = i];
-                    output[1] = order[2][J = j];
-                    output[2] = order[2][K = kpos];
-                    ++kpos;
+                    output[0] = I = i;
+                    output[1] = J = j;
+                    output[2] = K = kpos;
                 }
                 goto outer_break;
             jump_label:
@@ -116,9 +117,9 @@ extern "C" EXPORT int calc1(int n, int ans, int *a, int *b, int *output) {
                 tans = f[0][i] + f[1][j] + f[2][kpos + pos];
                 if (ans < tans) {
                     ans = tans;
-                    output[0] = order[2][I = i];
-                    output[1] = order[2][J = j];
-                    output[2] = order[2][K = kpos + pos];
+                    output[0] = I = i;
+                    output[1] = J = j;
+                    output[2] = K = kpos + pos;
                 }
             outer_break:;
             }
@@ -133,7 +134,7 @@ extern "C" EXPORT int calc1(int n, int ans, int *a, int *b, int *output) {
             __m256i vecsk;
             int lowmsk, pos, tans;
             int kpos = 0;
-            while (kpos + 8 <= n) {
+            for (; kpos + 8 <= n; kpos += 8) {
                 if (f[0][i] + f[1][j] + f[2][kpos] <= ans) {
                     goto outer_break1;
                 }
@@ -141,18 +142,16 @@ extern "C" EXPORT int calc1(int n, int ans, int *a, int *b, int *output) {
                 vecsk = _mm256_cmpeq_epi32(vecsij & vecsk, zero);
                 if ((lowmsk = _mm256_movemask_ps(_mm256_castsi256_ps(vecsk))) != 0)
                     goto jump_label1;
-                kpos += 8;
             }
-            while (kpos < n) {
+            for (; kpos < n; kpos++) {
                 if (f[0][i] + f[1][j] + f[2][kpos] <= ans)
                     break;
                 if ((S[i] | S[j]) & S[kpos])
                     continue;
                 ans = f[0][i] + f[1][j] + f[2][kpos];
-                output[0] = order[2][I = i];
-                output[1] = order[2][J = j];
-                output[2] = order[2][K = kpos];
-                ++kpos;
+                output[0] = I = i;
+                output[1] = J = j;
+                output[2] = K = kpos;
             }
             goto outer_break1;
         jump_label1:
@@ -160,13 +159,16 @@ extern "C" EXPORT int calc1(int n, int ans, int *a, int *b, int *output) {
             tans = f[0][i] + f[1][j] + f[2][kpos + pos];
             if (ans < tans) {
                 ans = tans;
-                output[0] = order[2][I = i];
-                output[1] = order[2][J = j];
-                output[2] = order[2][K = kpos + pos];
+                output[0] = I = i;
+                output[1] = J = j;
+                output[2] = K = kpos + pos;
             }
         outer_break1:;
         }
     outer:;
+    }
+    for (int i = 0; i < 3; i++) {
+        output[i] = order[2][output[i]];
     }
     // assert((S[I] & S[J]) == 0 && (S[J] & S[K]) == 0 && (S[K] & S[I]) == 0 &&
     //        ans == f[0][I] + f[1][J] + f[2][K]);

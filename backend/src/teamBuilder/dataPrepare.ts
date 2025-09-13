@@ -119,7 +119,9 @@ export async function dataPrepare(player: playerDetail, server: Server) {
         initTeamList()
         console.log(teamList.length)
     }
-
+    if (teamList.length > 65536) {
+        throw new Error("方案数过多，请减少一些卡牌吧")
+    }
     const areaItem = player.getAreaItemPercent()
     const res: buildResult = new buildResult(songList)
     if (event.eventType == 'medley') {
@@ -131,45 +133,27 @@ export async function dataPrepare(player: playerDetail, server: Server) {
                 info.calcStat()
                 info.score = charts.map((chart, i) => chart.getScore([...info.order[i], info.capital[i]], info.scoreUp[i], Math.floor(info.stat), true))
             }
-            let abortSet = 0
-            for (let i = 0; i < cardList.length; i++) {
-                const cnt = {}, scoreUpMaxValue = cardList[i].scoreUp.unificationActivateEffectValue || cardList[i].scoreUp.default
-                for (const info of cardList) {
-                    if (info.addUpStat > cardList[i].addUpStat && info.scoreUp.default >= scoreUpMaxValue)
-                        cnt[info.card.characterId] += 1
-                }
-                let sum = 0
-                for (const characterId in cnt) {
-                    if (characterId == cardList[i].card.characterId.toString() && sum >= 3)
-                        abortSet |= 1 << i
-                    sum += Math.min(3, cnt[characterId]) 
-                }
-                if (sum >= 15)
-                    abortSet |= 1 << i
-            }
-            const teamInfoList: Array<teamInfo> = teamList.filter(info => (info.set & abortSet) == 0)
-            return teamInfoList
         }
         for (const magazine in areaItem[AreaItemType.magazine]) {
             let eventBandId = event.bandId[0], eventAttribute = event.attribute[0]
             if (eventBandId == 0) eventBandId = 1000
-            let tmpTeamList = generateTeamList(eventBandId, eventAttribute, magazine)
-            let { data } = new dataEntries(res.totalScore, tmpTeamList)
+            generateTeamList(eventBandId, eventAttribute, magazine)
+            let { data } = new dataEntries(res.totalScore, teamList)
             const plan = new IntArray([-1, -1, -1])
             const tmpScore = lib.calc(...data, plan)
             if (tmpScore > res.totalScore) {
-                res.upd(tmpTeamList, Array.from(plan) as Array<number>, eventBandId, eventAttribute, magazine)
+                res.upd(teamList, Array.from(plan) as Array<number>, eventBandId, eventAttribute, magazine)
             }
             for (const bandId in areaItem[AreaItemType.band]) {
                 for (const attribute in areaItem[AreaItemType.attribute]) {
                     if (bandId == eventBandId.toString() && attribute == eventAttribute)
                         continue
-                    tmpTeamList = generateTeamList(bandId, attribute, magazine)
-                    let data = new dataEntries(res.totalScore, tmpTeamList)
+                    generateTeamList(bandId, attribute, magazine)
+                    let data = new dataEntries(res.totalScore, teamList)
                     const plan = new IntArray([-1, -1, -1])
                     const tmpScore = lib.calc(...data.data, plan)
                     if (tmpScore > res.totalScore) {
-                        res.upd(tmpTeamList, Array.from(plan) as Array<number>, bandId, attribute, magazine)
+                        res.upd(teamList, Array.from(plan) as Array<number>, bandId, attribute, magazine)
                     }
                 }
             }

@@ -59,15 +59,20 @@ export async function commandCalcResult(playerId: number, mainServer: Server, us
     if (!save) {
         save = false
     }
-    const res: buildResult = await dataPrepare(player, mainServer)
-    res.print()
-    const output = []
-    if (save) {
-        res.description = description
-        const saveRes = await resultDB.addResult(player.currentEvent, res)
-        output.push(`上传成功，当前活动共有${saveRes.compositionList.length}个方案`)
+    const output = [] 
+    try {
+        const res: buildResult = await dataPrepare(player, mainServer)
+        res.print()
+        if (save) {
+            res.description = description
+            const saveRes = await resultDB.addResult(player.currentEvent, res)
+            output.push(`上传成功，当前活动共有${saveRes.compositionList.length}个方案`)
+        }
+        output.push(...await drawResult(res, currentEvent, useEasyBG, compress))
     }
-    output.push(...await drawResult(res, currentEvent, useEasyBG, compress))
+    catch(e) {
+        return [e.message]
+    }
     return output
 }
 

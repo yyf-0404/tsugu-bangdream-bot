@@ -53,14 +53,10 @@ router.post('/importPlayerData',
     async (req: Request, res: Response) => {
         const { playerId, mainServer, useEasyBG, compress } = req.body;
         const player = new Player(playerId, mainServer)
-        await player.initFull(false, 3)
-        if (player.initError) {
-            //使用缓存查询，如果失败则返回失败
-            await player.initFull(false, 0)
-            if (player.initError || !player.isExist) {
-                res.send(listToBase64([`错误: 查询玩家时发生错误`]));
-                return
-            }
+        await player.initFull(false, 2)
+        if (player.initError || !player.isExist) {
+            res.send(listToBase64([`错误: 查询玩家时发生错误`]));
+            return
         }
 
         const cardList = player.profile.mainDeckUserSituations.entries.map((card) => {
