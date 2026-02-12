@@ -9,7 +9,6 @@ import { globalDefaultServer, Bestdoriurl } from '@/config';
 import { stringToNumberArray } from '@/types/utils'
 import { Card } from './Card';
 
-var eventDataCache = {}
 
 const typeName = {
     "story": "一般活动 (协力)",
@@ -167,13 +166,7 @@ export class Event {
         if (this.isExist == false) {
             return
         }
-        if (eventDataCache[this.eventId.toString()] != undefined && !useCache) {
-            var eventData = eventDataCache[this.eventId.toString()]
-        }
-        else {
-            var eventData = await this.getData(useCache)
-            eventDataCache[this.eventId.toString()] = eventData
-        }
+        const eventData = await this.getData(!useCache)
         this.isInitFull = true;
         this.eventType = eventData['eventType'];
         this.eventName = eventData['eventName'];

@@ -134,13 +134,14 @@ export class Gacha {
         return gachaData
     }
     async getBannerImage(): Promise<Image> {
-        try {
-            var BannerImageBuffer = await downloadFileCache(`${Bestdoriurl}/assets/jp/homebanner_rip/${this.bannerAssetBundleName}.png`, false)
-            return await loadImage(BannerImageBuffer)
+        if (this.bannerAssetBundleName) {
+            try {
+                var BannerImageBuffer = await downloadFileCache(`${Bestdoriurl}/assets/jp/homebanner_rip/${this.bannerAssetBundleName}.png`, false)
+                return await loadImage(BannerImageBuffer)
+            }
+            catch (e) {}
         }
-        catch (e) {
-            return (this.getGachaLogo())
-        }
+        return (this.getGachaLogo())
     }
     async getGachaBGImage(displayedServerList: Server[] = globalDefaultServer): Promise<Image> {
         if (!displayedServerList) displayedServerList = globalDefaultServer
