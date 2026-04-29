@@ -70,7 +70,7 @@ export async function drawEventList(matches: FuzzySearchResult, displayedServerL
     }
 
     // 按照开始时间排序
-    sortEventList(tempEventList)
+    sortEventList(tempEventList,displayedServerList)
 
     var eventPromises: Promise<{ index: number, image: Canvas }>[] = [];
     var tempH = 0;
@@ -158,7 +158,7 @@ async function drawEventInList(event: Event, displayedServerList: Server[] = glo
     const currentEvent = getPresentEvent(getServerByName("cn"));
     for (var i = 0; i < numberOfServer; i++) {
         let server = displayedServerList[i]
-        if (server == getServerByName('cn') && event.startAt[server] == null && event.eventId > currentEvent.eventId) {
+        if (server == getServerByName('cn') && event.startAt[server] == null ) {    // && event.eventId > currentEvent.eventId
             content.push(await getIcon(server), `${changeTimefomant(GetProbablyTimeDifference(event.eventId, currentEvent))} (预计开放时间)\n`)
         }
         else {

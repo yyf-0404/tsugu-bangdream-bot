@@ -51,7 +51,6 @@
     "ref-array-di": "^1.2.2",
     "ref-napi": "^3.0.3",
     "skia-canvas": "^1.0.2",
-    "sqlite3": "^5.1.7",
     "svg2img": "^1.0.0-beta.2",
     "ts-node": "^10.9.2",
     "validator": "^13.9.0",

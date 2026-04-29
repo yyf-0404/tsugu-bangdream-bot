@@ -4,6 +4,7 @@ import { Server, getServerByName } from '@/types/Server';
 import { drawListByServerList } from '@/components/list'
 import { Canvas } from 'skia-canvas'
 import { Event } from '@/types/Event'
+import mainAPI from "@/types/_Main";
 
 interface timeInListOptions {
     key?: string;
@@ -37,16 +38,41 @@ export async function drawTimeInList({
     return canvas
 }
 //获取当前活动与查询活动的大致时间差(国服)
+//注: 返回的并非时间差，而是活动预计开始的时间戳
 export function GetProbablyTimeDifference(eventId: number, currentEvent: Event): number {
-    /*
-    var diff = eventId - currentEvent.eventId;
-    var timeStamp = currentEvent.startAt[3] + 1000 * 60 * 60 * 24 * 9 * diff;
-    */
-    //国服从第253期活动开始，与日服完全同步
-    const tempEvent = new Event(eventId)
-    const tempServer254 = new Event(254)
-    const timeStamp = tempEvent.startAt[Server.jp] + (tempServer254.startAt[Server.cn] - tempServer254.startAt[Server.jp])
-    return timeStamp;
+    let eventsData = mainAPI['events'];
+    let sureEndEvent = 298  // 确定已经结束的Event，减少循环量
+    let blockEventIdList:number[] = []  // 对于国服而言，涉及预估逻辑之内但不会举办的活动
+    let presentEventJP = getPresentEvent(Server.jp).eventId   // 取得日服最新一期的活动
+    let currentEventWithNoBanGDaysTotalOffset = 0
+    let currentEventId = currentEvent.eventId
+    // 计算当前活动日服与国服的实际持续天数偏移
+    let eventLenOffset = occupiedDays(new Event(currentEventId).startAt[Server.cn],new Event(currentEventId).endAt[Server.cn])
+                        - occupiedDays(new Event(currentEventId).startAt[Server.jp],new Event(currentEventId).endAt[Server.jp])
+    let defaultNoBanGDays = 1   // 对于没有推断无邦日的，默认一天无邦日。
+    // 计算当前正在进行的活动含无邦日当天一共有多少天
+    if (currentEventId < presentEventJP){
+        currentEventWithNoBanGDaysTotalOffset = (occupiedDays(new Event(currentEventId).startAt[Server.jp],new Event(currentEventId+1).startAt[Server.jp])-1+eventLenOffset)*24*3600*1000
+    }
+    else if(currentEventId == presentEventJP){
+        // 如果当前活动与日服并行，则计算无邦日就从上一个endAt到这一个endAt
+        currentEventWithNoBanGDaysTotalOffset = (occupiedDays(new Event(currentEventId-1).endAt[Server.jp],new Event(currentEventId).endAt[Server.jp])-1+eventLenOffset)*24*3600*1000
+    }
+    else{
+        // 预防国服可能出现与台服一样存在自有活动的情形，如台服5001。
+        currentEventWithNoBanGDaysTotalOffset = (occupiedDays(new Event(currentEventId).startAt[Server.cn],new Event(currentEventId).endAt[Server.cn])+defaultNoBanGDays)*24*3600*1000
+    }
+    let ProbablyTimeOffset = currentEvent.startAt[Server.cn]    // 等于正在举办活动的StartAt
+    for(var i = sureEndEvent ;i<presentEventJP;i++){
+        if (!eventsData[i.toString()]["startAt"][Server.cn]){   // 对于国服来说当前活动未举办
+            // 计算活动相对于日服（含无邦日）的时长。
+            ProbablyTimeOffset +=(occupiedDays(new Event(i).startAt[Server.jp],new Event(i+1).startAt[Server.jp]) -1 )*24*3600*1000
+        }
+        if (i + 1 == eventId) return (ProbablyTimeOffset + currentEventWithNoBanGDaysTotalOffset) //如果下一个循环是要获取的时间
+        if (blockEventIdList.includes(i+1)) continue    // 对于国服而言不会举办的活动，跳过
+    }
+    let presentEventJPLen=(occupiedDays(new Event(presentEventJP).startAt[Server.jp],new Event(presentEventJP).endAt[Server.jp])+defaultNoBanGDays)*24*3600*1000
+    return ProbablyTimeOffset + currentEventWithNoBanGDaysTotalOffset + presentEventJPLen  // 日服321，预测322+
 }
 
 export function changeTimefomant(timeStamp: number | null) {//时间戳到年月日 精确到分钟
@@ -162,4 +188,18 @@ export function formatSeconds(value: number) {
         result = "" + parseInt(theTime2.toString()) + "小时" + result;
     }
     return result;
+}
+
+function occupiedDays(startTs: number, endTs: number): number {
+    const start = new Date(startTs);
+    const end = new Date(endTs);
+
+    // 取年月日，忽略时分秒
+    const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+
+    const msPerDay = 1000 * 60 * 60 * 24;
+
+    // 计算跨越的天数，再加1包含第一天
+    return Math.floor((endDay.getTime() - startDay.getTime()) / msPerDay) + 1;
 }

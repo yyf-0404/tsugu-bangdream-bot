@@ -10,6 +10,7 @@ import { stringToNumberArray } from '@/types/utils'
 import { Card } from './Card';
 
 var eventDataCache = {}
+import { GetProbablyTimeDifference } from '@/components/list/time';
 
 const typeName = {
     "story": "一般活动 (协力)",
@@ -167,13 +168,7 @@ export class Event {
         if (this.isExist == false) {
             return
         }
-        if (eventDataCache[this.eventId.toString()] != undefined && !useCache) {
-            var eventData = eventDataCache[this.eventId.toString()]
-        }
-        else {
-            var eventData = await this.getData(useCache)
-            eventDataCache[this.eventId.toString()] = eventData
-        }
+        const eventData = await this.getData(!useCache)
         this.isInitFull = true;
         this.eventType = eventData['eventType'];
         this.eventName = eventData['eventName'];
@@ -317,9 +312,9 @@ export class Event {
     }
     async getRewardStamp(server:Server): Promise<Image> {
         const allStamps = await callAPIAndCacheResponse(`${Bestdoriurl}/api/stamps/all.2.json`)
-        const rewards = this.pointRewards[0]
+        const rewards = this.pointRewards.filter(Boolean)[0]
         let rewardId = -1
-        for(let i = 0; i < rewards.length; i++){
+        for(let i = 0; i < rewards?.length; i++){
             if(rewards[i].rewardType == 'stamp'){
                 rewardId = rewards[i].rewardId
                 break
@@ -346,6 +341,41 @@ export class Event {
             return undefined
         }
     }
+    async getRewardDeco(server:Server): Promise<Image> {
+        const allDeco = mainAPI['deco']
+        if(!this.rankingRewards[server]){   // Undefined处理
+            return undefined
+        }
+        const rewards = this.rankingRewards[server].filter(Boolean)
+        let rewardId = -1
+        for(let i = 0; i < rewards?.length; i++){
+            if(rewards[i].rewardType == 'deco_pins'){
+                rewardId = rewards[i].rewardId
+                break
+            }
+        }
+        if (rewardId == -1) return undefined
+        let decoAssentName = ''
+        for(const i in allDeco){
+            if(i == rewardId.toString()){
+                decoAssentName = allDeco[i]['assetBundleName']
+            }
+        }
+        if(decoAssentName == ''){
+            return undefined
+        }
+        let serverName = 'cn'
+        if(this.startAt[server] && this.startAt[server] < Date.now()){
+            serverName = Server[server]
+        }
+        try {
+            const decoBuffer = await downloadFileCache(`${Bestdoriurl}/assets/${serverName}/deco/pins_rip/${decoAssentName}.png`)
+            return await loadImage(decoBuffer)
+        }
+        catch{
+            return undefined
+        }
+    }
 
 }
 
@@ -366,7 +396,7 @@ export function getPresentEvent(server: Server, time?: number) {
             }
         }
     }
-
+    let eventEndAtFlags:number = 0
     //如果没有活动进行中，则返回上一个刚结束的活动
     if (eventList.length == 0) {
         for (var key in eventListMain) {
@@ -374,7 +404,10 @@ export function getPresentEvent(server: Server, time?: number) {
             //如果在活动进行时
             if (event.startAt[server] != null && event.endAt[server] != null) {
                 if (event.endAt[server] <= time) {
-                    eventList.push(parseInt(key))
+                    if(event.endAt[server] > eventEndAtFlags){
+                        eventList.push(parseInt(key))
+                        eventEndAtFlags = event.endAt[server]
+                    }
                 }
             }
         }
@@ -391,10 +424,29 @@ export function getPresentEvent(server: Server, time?: number) {
 
 //根据服务器，将活动列表排序
 export function sortEventList(tempEventList: Event[], displayedServerList: Server[] = globalDefaultServer) {
+    let presentEventCN = getPresentEvent(Server.cn)
     tempEventList.sort((a, b) => {
         for (var i = 0; i < displayedServerList.length; i++) {
             var server = displayedServerList[i]
             if (a.startAt[server] == null || b.startAt[server] == null) {
+                if (displayedServerList[0] == Server.cn){
+                    // 再尝试通过预估时间排序
+                    let prvEvent = null
+                    let nxtEvent = null
+                    if (a.startAt[server] == null){
+                        prvEvent = GetProbablyTimeDifference(a.eventId,presentEventCN)
+                    }else{
+                        prvEvent = a.startAt[server]
+                    }
+                    if (b.startAt[server] == null){
+                        nxtEvent = GetProbablyTimeDifference(b.eventId,presentEventCN)
+                    }else{
+                        nxtEvent = b.startAt[server]
+                    }
+                    if (prvEvent != null || nxtEvent != null){
+                        return prvEvent - nxtEvent
+                    }
+                }
                 continue
             }
             if (a.startAt[server] != b.startAt[server]) {
