@@ -156,7 +156,7 @@ export class Skill {
             for (var i in this.data['activationEffect']['activateEffectTypes']) {
                 if (i.startsWith('score'))
                     this.data['activationEffect']['activateEffectTypes'][i]['activateEffectValue'].forEach(element => {
-                        if (parseInt(element) != null) {
+                        if (parseInt(element)) {
                             res.default = Math.max(res.default, parseInt(element))
                         }
                     });

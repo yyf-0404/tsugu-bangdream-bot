@@ -4,18 +4,16 @@ import { Bestdoriurl, tierListOfServer } from '@/config';
 import { Server } from '@/types/Server';
 import { Event } from '@/types/Event';
 import { predict } from '@/api/cutoff.cjs'
-import { continuePredict } from '@/predict/dataProcess';
-import { getHistory, saveHistory } from '@/predict/predictHistory';
+import { getJsonAndSave } from '@/api/downloader';
+const predictServerURL =`${process.env.PREDICT_SERVER_URL || 'http://127.0.0.1:8000'}/predictions/`
 export class Cutoff {
     eventId: number;
     server: Server;
     tier: number;
     isExist = false;
     cutoffs: { time: number, ep: number }[];
-    predictResult: { time: number, ep: number}[];
-    historyPredict: {
-        [timestamp: number]: number
-    }
+    prefix_curve: { time: number, ep: number}[];
+    history: { time: number, ep: number}[];
     eventType: string;
     latestCutoff: { time: number, ep: number };
     rate: number | null;
@@ -97,29 +95,28 @@ export class Cutoff {
         else {
             this.rate = rateData.rate
         }
-        this.predictResult = []
-        if (this.status == 'in_progress') {
-            this.predict()
-        }
-        this.historyPredict = getHistory(this.eventId, this.tier, this.server, true)
-        if (this.predictResult.length > 0 && !this.historyPredict[this.predictResult[0].time]) {
-            this.historyPredict[this.predictResult[0].time] = this.predictEP
-            saveHistory(this.eventId, this.tier, this.server, true, this.historyPredict)
-        }
+        this.prefix_curve = []
+        this.history = []
+        await this.predict()
         this.isInitfull = true
     }
-    predict() {
+    async predict() {
         if (this.isExist == false) {
             return
         }
-        if (this.server == Server.cn) {
-            this.predictResult = getHistory(this.eventId, this.tier, this.server, false)
-            if (this.predictResult.length == 0 || this.predictResult[0].time <= this.cutoffs.at(-1).time) {
-                this.predictResult = continuePredict(this.eventId, this.tier, this.server, this.cutoffs)
-                saveHistory(this.eventId, this.tier, this.server, false, this.predictResult)
+        if (this.server == 3) {
+            try {
+                const data = await getJsonAndSave(`${predictServerURL}${this.eventId}?server=${this.server}&tier=${this.tier}`);
+                this.history = data["history"];
+                this.prefix_curve = data["latest_slice"]["prefix_curve"];
+                this.predictEP = data["latest_slice"]["total_sum_hat"];
+                return this.predictEP;
             }
-            this.predictEP = Math.floor(this.predictResult.at(-1).ep)
-            return this.predictEP
+            catch (e) {
+            }
+        }
+        if (this.status != 'in_progress') {
+            return this.latestCutoff.ep
         }
         const event = new Event(this.eventId)
         let start_ts = Math.floor(event.startAt[this.server] / 1000)

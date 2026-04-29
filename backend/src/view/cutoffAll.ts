@@ -32,9 +32,6 @@ export async function drawCutoffAll(eventId: number, mainServer: Server, compres
     for (var i in tierList) {
         var tempCutoff = new Cutoff(eventId, mainServer, tierList[i])
         await tempCutoff.initFull()
-        if (tempCutoff.status == 'in_progress') {
-            tempCutoff.predict()
-        }
         cutoffList.push(tempCutoff)
     }
 

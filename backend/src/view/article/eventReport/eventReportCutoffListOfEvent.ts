@@ -34,7 +34,7 @@ export async function drawEventReportCutoffListOfEvent(eventId: number, mainServ
         var tempCutoff = new Cutoff(eventId, mainServer, tierList[i])
         await tempCutoff.initFull()
         if (tempCutoff.status == 'in_progress') {
-            tempCutoff.predict()
+            await tempCutoff.predict()
         }
         cutoffList.push(tempCutoff)
     }

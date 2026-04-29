@@ -77,7 +77,6 @@ export async function drawCutoffListOfRecentEvent(eventId: number, tier: number,
 
         //状态
         if (cutoff.status == 'in_progress') {
-            cutoff.predict()
             let predictText: string
             if (cutoff.predictEP == null || cutoff.predictEP == 0) {
                 predictText = '?'
