@@ -124,6 +124,7 @@ export class Event {
             return
         }
         this.isExist = true;
+        this.assetBundleName = eventData['assetBundleName']
         this.eventType = eventData['eventType'];
         this.eventName = eventData['eventName'];
         this.bannerAssetBundleName = eventData['bannerAssetBundleName'];
