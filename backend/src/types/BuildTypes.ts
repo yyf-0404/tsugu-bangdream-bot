@@ -4,11 +4,6 @@ import { Skill, scoreUp } from "@/types/Skill"
 import { AreaItem, AreaItemType } from "@/types/AreaItem"
 import mainAPI from "@/types/_Main"
 import { Stat, addStat, subStat, mulStat, statSum, emptyStat } from "@/types/Card"
-import { writeFile } from 'fs'
-import ArrayTypeFuc from "ref-array-di";
-import * as ref from "ref-napi";
-
-export const IntArray = ArrayTypeFuc(ref)(ref.types.int)
 
 export const limit = 60
 export const medleyLimit = 31
@@ -17,6 +12,22 @@ export const eventTypeList = [
   'versus', 
   'challenge'
 ]
+
+export function checkCard(player: playerDetail, eventType: string, length: number): string {
+    if (length == 0) {
+        return '还没有添加卡牌呢，使用 导入配置 或者 添加卡牌 来添加吧'
+    }
+    if (length > limit) {
+        return `当前卡牌数大于${limit}张，列表过长无法显示，请使用 删除卡牌 减少几张卡吧`
+    }
+    if (eventType == 'medley' && length > medleyLimit) {
+        return `当前卡牌数大于${medleyLimit}张，计算时间过长，无法进行组队，请使用 删除卡牌 减少几张卡吧`
+    }
+    if (!player.checkComposeTeam(eventType == 'medley' ? 3 : 1)) {
+        return '当前卡牌过少，无法进行组队，使用 导入配置 或者 添加卡牌 来添加吧'
+    }
+    return ''
+}
 
 export class cardInfo{
     card: Card
@@ -238,41 +249,6 @@ export class buildResult {
       console.log(this.item[0], this.item[1], this.item[2])
     }
 }
-export class dataEntries {
-  data: [number, number, any, any]
-  constructor(maxScore: number, teamList: Array<teamInfo>) {
-    const n = teamList.length
-    const S = [], f = []
-    for (const info of teamList) {
-      S.push(info.set)
-      for (let i = 0; i < 3; i++) {
-        f.push(info.score[i])
-      }
-    }
-    this.data = [n, maxScore, new IntArray(S), new IntArray(f)]
-  }
-  save(filename: string) {
-    let msg: string = '', n = this.data[0]
-    msg += n + '\n'
-    for (let i = 0; i < n; i++) {
-      msg += this.data[2][i]
-      if (i == n - 1) msg += '\n'
-      else msg += ' '
-    }
-    for (let i = 0; i < 3; i++) {
-      for (let j = 0; j < n; j += 1){
-        msg += this.data[3][j * 3 + i]
-        if (j == n - 1) msg += '\n'
-        else msg += ' '
-      }
-    }
-    writeFile(filename, msg, (err) => {
-      if (err) console.log(err)
-    })
-  }
-}
-
-
 export class playerDetail {
   playerId: number
   eventSongs: {

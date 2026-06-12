@@ -5,7 +5,7 @@ import { getServerByPriority, Server } from '@/types/Server'
 import mainAPI from '@/types/_Main'
 import { Bestdoriurl } from '@/config'
 import { stringToNumberArray } from '@/types/utils'
-import { cardInfo } from '@/teamBuilder/types'
+import { cardInfo } from '@/types/BuildTypes'
 import { assetErrorImageBuffer } from "@/image/utils";
 
 export const difficultyName = {//难度名称

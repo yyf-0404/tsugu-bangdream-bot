@@ -15,7 +15,7 @@ import { drawText } from '@/image/text';
 import { AreaItemType } from '@/types/AreaItem';
 import { Band } from '@/types/Band';
 import { Attribute } from '@/types/Attribute'
-import { buildResult } from '@/teamBuilder/types';
+import { buildResult } from '@/types/BuildTypes';
 
 export async function drawResult(data: buildResult, eventId: number, useEasyBG: boolean, compress: boolean) {
     const event = new Event(eventId)

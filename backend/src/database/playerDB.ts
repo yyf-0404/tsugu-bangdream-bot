@@ -2,7 +2,7 @@ import { MongoClient } from 'mongodb';
 import { Server } from '@/types/Server';
 import { Event } from '@/types/Event';
 import { difficultyColorList, Song } from '@/types/Song';
-import { eventTypeList, playerDetail } from '@/teamBuilder/types';
+import { eventTypeList, playerDetail } from '@/types/BuildTypes';
 
 export class PlayerDB {
   private client: MongoClient;

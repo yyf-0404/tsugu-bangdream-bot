@@ -1,5 +1,5 @@
 import { Collection, Db, MongoClient } from 'mongodb';
-import { buildResult } from '@/teamBuilder/types';
+import { buildResult } from '@/types/BuildTypes';
 
 export class eventCompositionResult {
     compositionList: Array<buildResult>

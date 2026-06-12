@@ -3,7 +3,7 @@ import { listToBase64 } from '@/routers/utils';
 import { isServer } from '@/types/Server';
 import { getServerByServerId } from '@/types/Server';
 import { PlayerDB } from "@/database/playerDB";
-import { playerDetail } from "@/teamBuilder/types";
+import { playerDetail } from "@/types/BuildTypes";
 import express from 'express';
 import { body } from 'express-validator'; // Import express-validator functions
 import { middleware } from '@/routers/middleware';

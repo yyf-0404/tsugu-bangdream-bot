@@ -14,7 +14,7 @@ import { Song } from '@/types/Song'
 import { drawSongInListBig } from '@/components/list/song';
 import { resizeImage, stackImage } from '@/components/utils';
 import { drawCardIcon } from '@/components/card'
-import { eventTypeList, playerDetail } from '@/teamBuilder/types';
+import { eventTypeList, playerDetail, medleyLimit, limit, checkCard } from '@/types/BuildTypes';
 import { drawText } from '@/image/text';
 import { AreaItemType, AreaItemTypeList } from '@/types/AreaItem';
 import { Band } from '@/types/Band';
@@ -22,8 +22,6 @@ import { Attribute } from '@/types/Attribute'
 import mainAPI from '@/types/_Main';
 import { Character } from '@/types/Character';
 import { drawRoundedRectWithText } from '@/image/drawRect';
-import { medleyLimit, limit } from '@/teamBuilder/types';
-import { checkCard } from '@/teamBuilder/dataPrepare';
 export async function drawTeamBuildDetail(player: playerDetail, server: Server, useEasyBG: boolean, compress: boolean) {
     const event = new Event(player.currentEvent)
     if (!event.isExist) {
