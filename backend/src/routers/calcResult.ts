@@ -10,7 +10,8 @@ import { body } from 'express-validator'; // Import express-validator functions
 import { middleware } from '@/routers/middleware';
 import { Request, Response } from 'express';
 import { getPresentEvent } from '@/types/Event';
-import { AreaItemType, buildResult, cardInfo } from "@/types/BuildTypes"
+import { buildResult, cardInfo } from "@/types/BuildTypes"
+import { AreaItemType } from "@/types/AreaItem";
 import { drawResult } from "@/view/calcResult";
 import { compositionResultDB } from "@/database/compositionResultDB";
 
