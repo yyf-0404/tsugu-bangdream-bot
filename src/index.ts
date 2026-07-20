@@ -18,13 +18,22 @@ import { commandSongChart, commandCommunitySongChart } from './commands/songChar
 import { commandEventStage } from './commands/eventStage'
 import { commandSongRandom } from './commands/songRandom'
 import { commandTopRateDetail } from './commands/topRateDetail'
+import { commandTopRateRanking } from './commands/topRateRanking'
+import { commandTopTenMinuteSpeed } from './commands/topTenMinuteSpeed'
+import { commandTopPointStat } from './commands/topPointStat'
+import { commandMonthlyRankingCutoffDetail } from './commands/monthlyRankingCutoffDetail'
+import { commandMonthlyRankingCutoffAll } from './commands/monthlyRankingCutoffAll'
+import { commandMonthlyRankingCutoffListOfRecent } from './commands/monthlyRankingCutoffListOfRecent'
+import { commandMonthlyRanking } from './commands/searchMonthlyRanking'
+import { commandCutOffMusic } from './commands/cutOffMusic'
 import { Server } from './types/Server'
 import { globalDefaultServer, tsuguUser } from './config'
-import { tierListOfServerToString, checkLeftDigits, paresMessageList, stringArrayToNumberArray } from './utils'
+import { tierListOfServerToString, checkLeftDigits, paresMessageList, stringArrayToNumberArray, parseTimeToMinutes, parseDate } from './utils'
 import { getRemoteDBUserData } from './api/remoteDB'
 import { serverNameFuzzySearchResult, getFuzzySearchResult } from './api/fuzzySearch'
 import {} from 'koishi-plugin-adapter-onebot'
 import { Player } from './types/Player'
+import { isInteger } from './commands/utils'
 
 export const name = 'tsugu-bangdream-bot';
 export const inject = ['database'];
@@ -277,9 +286,10 @@ export function apply(ctx: Context, config: Config) {
       const list = await commandSearchPlayer(config, playerId, mainServer)
       return (paresMessageList(list))
     })
-  ctx.command('查岗 <playerId:string> [serverName:string]', '查询前十车速', cmdConfig)
+  ctx.command('查岗 <playerId:string> [limit:string] [eventId] [serverName:string]', '查询玩家历史分数变化', cmdConfig)
     .option('count', '-c <count:number> 指定显示最近的几次分数变化，默认20次')
-    .action(async ({ session, options }, playerId, serverName) => {
+    .option('day', '-d <day:number> 指定活动开始的第几天的分数变动详情')
+    .action(async ({ session, options }, playerId, limit, eventId, serverName) => {
       if (playerId == undefined) {
         return `错误: 指令不完整\n使用以下指令以查看帮助:\n  help 查岗`
       }
@@ -296,6 +306,23 @@ export function apply(ctx: Context, config: Config) {
           return `请确认输入的排名在1到10之间`
         }
       }
+      let scoreLimit: string
+      if (limit) {
+        const normalized = limit.trim().replace(/＞/g, '>').replace(/＜/g, '<').replace(/＝/g, '=')
+        if (/^(?:[<>]=?\d+|\d+-\d+)$/.test(normalized)) {
+          scoreLimit = normalized
+        } else {
+          serverName = eventId
+          eventId = limit
+        }
+      }
+      if (eventId !== undefined && isNaN(Number(eventId))) {
+        serverName = eventId
+        eventId = undefined
+      }
+      if (options.day != null && (options.day < 0 || !Number.isInteger(options.day))) {
+        return '参数 day 输入无效，请提供一个非负整数'
+      }
       const tsuguUserData = await observeUserTsugu(session)
       let mainServer: Server = tsuguUserData.mainServer
       if (serverName) {
@@ -305,8 +332,143 @@ export function apply(ctx: Context, config: Config) {
         }
         mainServer = serverFromServerNameFuzzySearch
       }
-      const list = await commandTopRateDetail(config, options.count, playerId, tier, mainServer)
+      const list = await commandTopRateDetail(
+        config,
+        eventId === undefined ? undefined : Number(eventId),
+        options.day,
+        scoreLimit,
+        options.count,
+        playerId,
+        tier,
+        mainServer,
+      )
       return (paresMessageList(list))
+    })
+
+  ctx.command('分数图 <playerId:string> [limit:string] [eventId] [serverName:string]', '查询分数散点图', cmdConfig)
+    .action(async ({ session }, playerId, limit, eventId, serverName) => {
+      if (playerId == undefined) return '错误: 指令不完整\n使用以下指令以查看帮助:\n  help 分数图'
+      let tier: number
+      if (isNaN(parseInt(playerId))) {
+        if (/^t\d+$/i.test(playerId)) {
+          tier = parseInt(playerId.slice(1))
+          playerId = undefined
+        } else {
+          return '请确认输入玩家 ID 或排名格式正确'
+        }
+        if (tier > 10 || tier < 1) return '请确认输入的排名在 1 到 10 之间'
+      }
+      let scoreLimit: string
+      if (limit) {
+        const normalized = limit.trim().replace(/＞/g, '>').replace(/＜/g, '<').replace(/＝/g, '=')
+        if (/^(?:[<>]=?\d+|\d+-\d+)$/.test(normalized)) {
+          scoreLimit = normalized
+        } else {
+          serverName = eventId
+          eventId = limit
+        }
+      }
+      if (eventId !== undefined && isNaN(Number(eventId))) {
+        serverName = eventId
+        eventId = undefined
+      }
+      const tsuguUserData = await observeUserTsugu(session)
+      let mainServer: Server = tsuguUserData.mainServer
+      if (serverName) {
+        const matchedServer = await serverNameFuzzySearchResult(config, serverName)
+        if (matchedServer == -1) return '错误: 服务器名未能匹配任何服务器'
+        mainServer = matchedServer
+      }
+      const list = await commandTopPointStat(
+        config,
+        eventId === undefined ? undefined : Number(eventId),
+        scoreLimit,
+        playerId,
+        tier,
+        mainServer,
+      )
+      return paresMessageList(list)
+    })
+
+  ctx.command('前十车速 [commandArgs:text]', '查询当前前十车速排名', cmdConfig)
+    .option('length', '-l <length:string> 指定时间范围，默认60分钟')
+    .option('time', '-t <time:string> 指定结束时间，格式为 H 或 HH:mm')
+    .option('date', '-d <date:string> 指定结束日期，格式为年/月/日或月/日')
+    .option('player', '-p <player:string> 指定玩家或排名')
+    .action(async ({ session, options }, commandArgs) => {
+      const isPlayer = (value: string) => /^t([1-9]|10)$/i.test(value) || /^p\d+$/i.test(value)
+      const isHour = (value: string) => /^(?:[01]?\d|2[0-4])(?:[:：][0-5]\d)?$/.test(value)
+      const isDate = (value: string) => /^(?:(\d{4})[/.](\d{1,2})[/.](\d{1,2})|(\d{1,2})[/.](\d{1,2}))$/.test(value)
+      const isTimeRange = (value: string) => /^\d+(?:min|h|m)?$/i.test(value)
+      let player = options.player
+      let length = options.length && isTimeRange(options.length) ? parseTimeToMinutes(options.length) : undefined
+      let timeText = options.time && isHour(options.time) ? options.time : undefined
+      let date = options.date && isDate(options.date) ? parseDate(options.date) : undefined
+      let serverName: string
+      for (const arg of commandArgs?.trim().split(/\s+/) ?? []) {
+        if (isPlayer(arg)) player ??= arg.replace(/^p/i, '')
+        else if (isHour(arg)) timeText ??= arg
+        else if (isDate(arg)) date ??= parseDate(arg)
+        else if (isTimeRange(arg)) length ??= parseTimeToMinutes(arg)
+        else if (!/\d/.test(arg)) serverName ??= arg
+      }
+      if (timeText) {
+        const [hour, minute = 0] = timeText.split(/[:：]/).map(Number)
+        const base = date ?? new Date()
+        date = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0)
+      }
+      const tsuguUserData = await observeUserTsugu(session)
+      let mainServer: Server = tsuguUserData.mainServer
+      if (serverName) {
+        const matchedServer = await serverNameFuzzySearchResult(config, serverName)
+        if (matchedServer == -1) return '错误: 服务器名未能匹配任何服务器'
+        mainServer = matchedServer
+      }
+      let compareTier: number
+      let comparePlayerUid: number
+      if (player?.startsWith('t')) compareTier = Number(player.slice(1))
+      else if (player && !/^\d+$/.test(player)) return '参数 player 输入无效，请指定正确排名或 UID'
+      else if (player) comparePlayerUid = Number(player)
+      length ??= 60
+      const list = await commandTopRateRanking(config, mainServer, length, date, compareTier, comparePlayerUid)
+      return paresMessageList(list)
+    })
+
+  ctx.command('分速表 [commandArgs:text]', '查询当前前十分速表', cmdConfig)
+    .option('length', '-l <length:string> 指定时间范围，默认60分钟')
+    .option('allPlayer', '-a 显示全部玩家')
+    .option('time', '-t <time:string> 指定结束时间，格式为 H 或 HH:mm')
+    .option('date', '-d <date:string> 指定结束日期，格式为年/月/日或月/日')
+    .action(async ({ session, options }, commandArgs) => {
+      const isHour = (value: string) => /^(?:[01]?\d|2[0-4])(?:[:：][0-5]\d)?$/.test(value)
+      const isDate = (value: string) => /^(?:(\d{4})[/.](\d{1,2})[/.](\d{1,2})|(\d{1,2})[/.](\d{1,2}))$/.test(value)
+      const isTimeRange = (value: string) => /^\d+(?:min|h|m)?$/i.test(value)
+      let length = options.length && isTimeRange(options.length) ? parseTimeToMinutes(options.length) : undefined
+      let timeText = options.time && isHour(options.time) ? options.time : undefined
+      let date = options.date && isDate(options.date) ? parseDate(options.date) : undefined
+      let serverName: string
+      for (const arg of commandArgs?.trim().split(/\s+/) ?? []) {
+        if (isHour(arg)) timeText ??= arg
+        else if (isDate(arg)) date ??= parseDate(arg)
+        else if (isTimeRange(arg)) length ??= parseTimeToMinutes(arg)
+        else if (arg === '-a') options.allPlayer = true
+        else if (!/\d/.test(arg)) serverName ??= arg
+      }
+      if (timeText) {
+        const [hour, minute = 0] = timeText.split(/[:：]/).map(Number)
+        const base = date ?? new Date()
+        date = new Date(base.getFullYear(), base.getMonth(), base.getDate(), hour, minute, 0, 0)
+      }
+      const tsuguUserData = await observeUserTsugu(session)
+      let mainServer: Server = tsuguUserData.mainServer
+      if (serverName) {
+        const matchedServer = await serverNameFuzzySearchResult(config, serverName)
+        if (matchedServer == -1) return '错误: 服务器名未能匹配任何服务器'
+        mainServer = matchedServer
+      }
+      length ??= 60
+      const list = await commandTopTenMinuteSpeed(config, mainServer, length, date, options.allPlayer)
+      return paresMessageList(list)
     })
   ctx.command("查卡 <word:text>", "查卡", cmdConfig)
     .alias('查卡牌')
@@ -357,6 +519,16 @@ export function apply(ctx: Context, config: Config) {
       const list = await commandEvent(config, displayedServerList, text)
       return paresMessageList(list)
     })
+  ctx.command('查月榜 <word:text>', '查月榜', cmdConfig)
+    .usage('根据关键词或月榜 ID 查询月榜信息')
+    .example('查月榜 17 :返回 17 号月榜的信息')
+    .action(async ({ session }, text) => {
+      if (text == undefined) return '错误: 指令不完整\n使用以下指令以查看帮助:\n  help 查月榜'
+      const tsuguUserData = await observeUserTsugu(session)
+      const list = await commandMonthlyRanking(config, tsuguUserData.displayedServerList, text)
+      return paresMessageList(list)
+    })
+
   ctx.command("查曲 <word:text>", "查曲", cmdConfig)
     .usage('根据关键词或曲目ID查询曲目信息')
     .example('查曲 1 :返回1号曲的信息').example('查曲 ag lv27 :返回所有难度为27的ag曲列表')
@@ -536,6 +708,104 @@ export function apply(ctx: Context, config: Config) {
       }
       // @ts-ignore
       const list = await commandCutoffListOfRecentEvent(config, mainServer, tier, eventId)
+      return paresMessageList(list)
+    })
+
+  ctx.command('mycx <tier:integer> [monthlyRankingId] [serverName]', '查询指定档位的月榜预测线', cmdConfig)
+    .usage(`查询指定档位的月榜预测线；省略月榜 ID 时查询当前月榜\n可用档线:\n${tierListOfServerToString()}`)
+    .action(async ({ session }, tier, monthlyRankingId, serverName) => {
+      if (tier == undefined) return '错误: 指令不完整\n使用以下指令以查看帮助:\n  help mycx'
+      if (monthlyRankingId !== undefined && isNaN(Number(monthlyRankingId))) {
+        serverName = monthlyRankingId
+        monthlyRankingId = undefined
+      }
+      const tsuguUserData = await observeUserTsugu(session)
+      let mainServer: Server = tsuguUserData.mainServer
+      if (serverName) {
+        const matchedServer = await serverNameFuzzySearchResult(config, serverName)
+        if (matchedServer == -1) return '错误: 服务器名未能匹配任何服务器'
+        mainServer = matchedServer
+      }
+      const list = await commandMonthlyRankingCutoffDetail(
+        config,
+        mainServer,
+        tier,
+        monthlyRankingId === undefined ? undefined : Number(monthlyRankingId),
+      )
+      return paresMessageList(list)
+    })
+
+  ctx.command('mycxall [monthlyRankingId] [serverName]', '查询所有档位的月榜预测线', cmdConfig)
+    .usage(`查询所有月榜档位的预测线；省略月榜 ID 时查询当前月榜\n可用档线:\n${tierListOfServerToString()}`)
+    .action(async ({ session }, monthlyRankingId, serverName) => {
+      if (monthlyRankingId !== undefined && isNaN(Number(monthlyRankingId))) {
+        serverName = monthlyRankingId
+        monthlyRankingId = undefined
+      }
+      const tsuguUserData = await observeUserTsugu(session)
+      let mainServer: Server = tsuguUserData.mainServer
+      if (serverName) {
+        const matchedServer = await serverNameFuzzySearchResult(config, serverName)
+        if (matchedServer == -1) return '错误: 服务器名未能匹配任何服务器'
+        mainServer = matchedServer
+      }
+      const list = await commandMonthlyRankingCutoffAll(
+        config,
+        mainServer,
+        monthlyRankingId === undefined ? undefined : Number(monthlyRankingId),
+      )
+      return paresMessageList(list)
+    })
+
+  ctx.command('mlsycx <tier:integer> [monthlyRankingId] [serverName]', '查询近期月榜档线', cmdConfig)
+    .usage(`查询指定档位及最近四期月榜档线；省略月榜 ID 时查询当前月榜\n可用档线:\n${tierListOfServerToString()}`)
+    .action(async ({ session }, tier, monthlyRankingId, serverName) => {
+      if (tier == undefined) return '错误: 指令不完整\n使用以下指令以查看帮助:\n  help mlsycx'
+      if (monthlyRankingId !== undefined && isNaN(Number(monthlyRankingId))) {
+        serverName = monthlyRankingId
+        monthlyRankingId = undefined
+      }
+      const tsuguUserData = await observeUserTsugu(session)
+      let mainServer: Server = tsuguUserData.mainServer
+      if (serverName) {
+        const matchedServer = await serverNameFuzzySearchResult(config, serverName)
+        if (matchedServer == -1) return '错误: 服务器名未能匹配任何服务器'
+        mainServer = matchedServer
+      }
+      const list = await commandMonthlyRankingCutoffListOfRecent(
+        config,
+        mainServer,
+        tier,
+        monthlyRankingId === undefined ? undefined : Number(monthlyRankingId),
+      )
+      return paresMessageList(list)
+    })
+
+  ctx.command('ycxmusic <tier:integer> <music> [eventId] [serverName]', '查询指定档位的歌曲排名预测线', cmdConfig)
+    .usage(`tier=10 时返回前十线；必须指定歌曲 ID 或名称\n可用档线:\n${tierListOfServerToString()}`)
+    .action(async ({ session }, tier, music, eventId, serverName) => {
+      if (tier == undefined || music == undefined) {
+        return '错误: 指令不完整，需要指定档位和歌曲\n使用以下指令以查看帮助:\n  help ycxmusic'
+      }
+      if (eventId !== undefined && isNaN(Number(eventId))) {
+        serverName = eventId
+        eventId = undefined
+      }
+      const tsuguUserData = await observeUserTsugu(session)
+      let mainServer: Server = tsuguUserData.mainServer
+      if (serverName) {
+        const matchedServer = await serverNameFuzzySearchResult(config, serverName)
+        if (matchedServer == -1) return '错误: 服务器名未能匹配任何服务器'
+        mainServer = matchedServer
+      }
+      const musicQuery = /^\d+$/.test(String(music)) ? Number(music) : music
+      const list = await commandCutOffMusic(
+        config,
+        mainServer,
+        Number(tier),
+        musicQuery,
+        eventId === undefined ? undefined : Number(eventId),
+      )
       return paresMessageList(list)
     })
 

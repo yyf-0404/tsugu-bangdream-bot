@@ -1,75 +1,66 @@
-import { Image, Canvas } from 'skia-canvas'
-import { drawTitle } from "@/components/title";
-import { serverNameFullList } from "@/config";
-import { CutoffEventTop } from "@/types/CutoffEventTop";
-import { Event } from '@/types/Event';
-import { Server } from "@/types/Server";
-import { drawEventDatablock } from '@/components/dataBlock/event';
+import { Image, Canvas } from 'skia-canvas';
+import { drawTitle } from '@/components/title';
+import { serverNameFullList } from '@/config';
+import { Server } from '@/types/Server';
 import { drawDatablock } from '@/components/dataBlock';
 import { outputFinalBuffer } from '@/image/output';
 import { drawPlayerRankingInList } from '@/components/list/playerRanking';
 import {
-    drawCutoffEventTopChart,
-    drawCutOffEventTopSingleChart, drawSinglePointChart
-} from '@/components/chart/cutoffChart';
-import { songChartRouter } from '@/routers/songChart';
-import { drawList, drawListMerge } from '@/components/list';
-import { drawDottedLine } from '@/image/dottedLine';
-import { resizeImage } from '@/components/utils';
-import { stackImage } from '@/components/utils';
+    drawMonthlyRankingCutoffTopChart, drawMonthlyRankingCutOffTopSingleChart
+} from '@/components/chart/monthlyRankingCutoffChart';
+import { resizeImage, stackImage } from '@/components/utils';
+import { MonthlyRankingCutoffTop } from '@/types/MonthlyRankingCutoff';
+import { drawMonthlyRankingDatablock } from '@/components/dataBlock/monthlyRanking';
+import { drawDottedLine } from "@/image/dottedLine";
+import { drawList, drawListMerge } from "@/components/list";
 import { drawRoundedRectWithText } from "@/image/drawRect";
 import { presetColorList } from "@/types/Color";
-import { MonthlyRankingCutoffTop } from "@/types/MonthlyRankingCutoff";
+import { MonthlyRanking } from "@/types/MonthlyRanking";
+import { getTopRatingDuringTime } from "@/view/cutoffEventTop";
 
-export async function drawCutoffEventTop(eventId: number, mainServer: Server, compress: boolean): Promise<Array<Buffer | string>> {
-    var cutoffEventTop = new CutoffEventTop(eventId, mainServer);
-    await cutoffEventTop.initFull();
-    if (!cutoffEventTop.isExist) {
-        return [`错误: ${serverNameFullList[mainServer]} 活动不存在或数据不足`];
+export async function drawMonthlyRankingCutoffEventTop(monthlyRankingId: number, mainServer: Server, compress: boolean): Promise<Array<Buffer | string>> {
+    const monthlyRankingCutoffTop = new MonthlyRankingCutoffTop(monthlyRankingId, mainServer);
+    await monthlyRankingCutoffTop.initFull();
+    if (!monthlyRankingCutoffTop.isExist) {
+        return [`错误: ${ serverNameFullList[mainServer] } 月榜不存在或数据不足`];
     }
-    var all = [];
-    all.push(drawTitle('档线', `${serverNameFullList[mainServer]} 10档线`));
-    var list: Array<Image | Canvas> = [];
-    var event = new Event(eventId);
-    all.push(await drawEventDatablock(event, [mainServer]));
 
-    //前十名片
-    var userInRankings = cutoffEventTop.getLatestRanking();
+    const all: Array<Canvas | Image> = [];
+    all.push(drawTitle('档线', `${ serverNameFullList[mainServer] } 月榜10档线`));
+    all.push(await drawMonthlyRankingDatablock(monthlyRankingCutoffTop.monthlyRanking, [mainServer]));
+
+    const list: Array<Image | Canvas> = [];
+    const userInRankings = monthlyRankingCutoffTop.getLatestRanking();
     for (let i = 0; i < userInRankings.length; i++) {
-        var color = i % 2 == 0 ? 'white' : '#f1f1f1';
-        var user = cutoffEventTop.getUserByUid(userInRankings[i].uid);
-        var playerRankingImage = await drawPlayerRankingInList(user, color, mainServer);
+        const color = i % 2 == 0 ? 'white' : '#f1f1f1';
+        const user = monthlyRankingCutoffTop.getUserByUid(userInRankings[i].uid);
+        const playerRankingImage = await drawPlayerRankingInList(user, color, mainServer);
         if (playerRankingImage != undefined) {
-            list.push(playerRankingImage);
+            list.push(resizeImage({ image: playerRankingImage, widthMax: 800 }));
         }
     }
 
-    list.push(new Canvas(800, 50))
+    list.push(new Canvas(800, 50));
+    list.push(await drawMonthlyRankingCutoffTopChart(monthlyRankingCutoffTop, false));
 
-    //折线图
-    list.push(await drawCutoffEventTopChart(cutoffEventTop, false, mainServer))
-
-    var listImage = drawDatablock({ list });
-    all.push(listImage);
-
-    var buffer = await outputFinalBuffer({ imageList: all, useEasyBG: true, compress: compress })
-
+    all.push(drawDatablock({ list }));
+    const buffer = await outputFinalBuffer({ imageList: all, useEasyBG: true, compress });
     return [buffer];
 }
 
-export async function drawTopRateDetail(eventId: number, playerId: number, tier: number, day: number, limit: string, maxCount: number, mainServer: Server, compress: boolean): Promise<Array<Buffer | string>> {
-    var cutoffEventTop = new CutoffEventTop(eventId, mainServer);
-    await cutoffEventTop.initFull(0);
-    if (!cutoffEventTop.isExist) {
-        return [`错误: ${serverNameFullList[mainServer]} 活动不存在或数据不足`];
+export async function drawMonthlyRankingTopRateDetail(monthlyRankingId: number, playerId: number, tier: number, day: number, limit: string, maxCount: number, mainServer: Server, compress: boolean): Promise<Array<Buffer | string>> {
+    var monthlyRankingCutoffTop = new MonthlyRankingCutoffTop(monthlyRankingId, mainServer);
+    await monthlyRankingCutoffTop.initFull(0);
+    if (!monthlyRankingCutoffTop.isExist) {
+        return [`错误: ${serverNameFullList[mainServer]} 月榜不存在或数据不足`];
     }
     //if (cutoffEventTop.status != "in_progress") {
     //return [`当前主服务器: ${serverNameFullList[mainServer]}没有进行中的活动`]
     //}
-    const finalRanking = cutoffEventTop.getLatestRanking();
+    const finalRanking = monthlyRankingCutoffTop.getLatestRanking();
     if (day) {
-        const targetDay = cutoffEventTop.startAt + (day - 1) * 24 * 3600 * 1000;
-        if (targetDay < cutoffEventTop.startAt || targetDay > cutoffEventTop.endAt) {
+        const targetDay = monthlyRankingCutoffTop.startAt + (day - 1) * 24 * 3600 * 1000;
+        if (targetDay < monthlyRankingCutoffTop.startAt || targetDay > monthlyRankingCutoffTop.endAt) {
             return [`错误: ${serverNameFullList[mainServer]} d${day}不在活动时间内`];
         }
         const dayStart = new Date(targetDay)
@@ -78,7 +69,7 @@ export async function drawTopRateDetail(eventId: number, playerId: number, tier:
         const dayEnd = new Date(targetDay)
         dayEnd.setHours(24);
         const dayEndAt = dayEnd.getTime();
-        cutoffEventTop.points = cutoffEventTop.points.filter(point => (point.time > dayStartAt && point.time < dayEndAt));
+        monthlyRankingCutoffTop.points = monthlyRankingCutoffTop.points.filter(point => (point.time > dayStartAt && point.time < dayEndAt));
     }
 
     var all = [];
@@ -99,8 +90,8 @@ export async function drawTopRateDetail(eventId: number, playerId: number, tier:
         // var event = new Event(eventId);
         // all.push(await drawEventDatablock(event, [mainServer]));
         //名片
-        var event = new Event(eventId);
-        all.push(await drawEventDatablock(event, [mainServer]));
+        var monthlyRanking = new MonthlyRanking(monthlyRankingId);
+        all.push(await drawMonthlyRankingDatablock(monthlyRanking, [mainServer]));
         //var userInRankings = cutoffEventTop.getLatestRanking();
         var userInRankings = finalRanking;
         for (let i = 0; i < userInRankings.length; i++) {
@@ -108,7 +99,7 @@ export async function drawTopRateDetail(eventId: number, playerId: number, tier:
                 continue
             }
             playerId = userInRankings[i].uid
-            var user = cutoffEventTop.getUserByUid(playerId);
+            var user = monthlyRankingCutoffTop.getUserByUid(playerId);
             var playerRankingImage = await drawPlayerRankingInList(user, 'white', mainServer);
             if (playerRankingImage != undefined) {
                 list.push(resizeImage({ image: playerRankingImage, widthMax }));
@@ -117,9 +108,9 @@ export async function drawTopRateDetail(eventId: number, playerId: number, tier:
         if (list.length > 0) {
             all.push(drawDatablock({ list, maxWidth: widthMax }))
         } else
-            return [`玩家当前不在${serverNameFullList[mainServer]}: 活动${eventId}前十名里`]
+            return [`玩家当前不在${serverNameFullList[mainServer]}: 月榜${monthlyRankingId}前十名里`]
     }
-    const playerRating = getRatingByPlayer(cutoffEventTop.points, playerId)
+    const playerRating = getRatingByPlayer(monthlyRankingCutoffTop.points, playerId)
     //最近maxCount次分数变化
     {
         const list = [], imageList = []
@@ -183,176 +174,6 @@ export async function drawTopRateDetail(eventId: number, playerId: number, tier:
         }
         all.push(drawDatablock({ list, topLeftText: day ? `玩家于day${day}的分数变化` : `最近${maxCount}次分数变化` }))
     }
-    //CP活cp情况统计
-    const nowEvent = new Event(eventId);
-    if (nowEvent.eventType === 'challenge' && !limit) {
-        const cpLists = [];
-        let multiPlayTimes = 0;
-        let multiPlayCPs = 0;
-        let challengePlayTimes = 0;
-        let changeCPs = 0;
-
-        const playerStartTime = nowEvent.startAt[mainServer]
-
-        const extendedRating = day ? playerRating :
-            [...playerRating.filter(item => item.time > playerStartTime), {
-                time: playerStartTime + 1,
-                value: -1
-            }, {
-                time: playerStartTime,
-                value: 0
-            }];
-
-
-        //console.log(extendedRating.slice(-50))
-
-        let livePoint = [];
-        let cpPoints = []
-        const avg = (arr: number[]) => arr.length ? arr.reduce((sum, val) => sum + val, 0) / arr.length : 0;
-        for (let i = 0; i < extendedRating.length - 1; i++) {
-            const current = extendedRating[i]
-            if (current.value <= 0) continue
-
-            let j = i + 1
-            let crossedSeparator = false
-
-            //寻找下一个有效的分数值
-            while (j < extendedRating.length) {
-                if (extendedRating[j].value === -1) {
-                    crossedSeparator = true
-                } else if (extendedRating.at(j - 1)?.time - extendedRating.at(j)?.time > 5 * 60 * 1000) {
-                    crossedSeparator = true;
-                    if (extendedRating[j].value >= 0) break;
-                } else if (extendedRating[j].value >= 0) break
-                j++
-            }
-
-            //越界保护
-            if (j >= extendedRating.length) break
-            //计算分数增量
-            const next = extendedRating[j]
-            const diff = current.value - next.value
-
-            if (diff === 0) continue
-
-            //跨越-1/bd炸了(出现中断点，需合理分配协力和清理cp)
-            if (crossedSeparator) {
-                const timesPerHour = 28
-                const cpTimesPerHour = 30
-                const avgLivePoints = (avg(livePoint.length > 50 ? livePoint.slice(-50) : livePoint) || avg(cpPoints.length > 50 ? cpPoints.slice(-50) : cpPoints) / 8 || 11000);
-                const avgCPPoints = (avg(cpPoints.length > 50 ? cpPoints.slice(-50) : cpPoints) || avg(livePoint.length > 50 ? livePoint.slice(-50) : livePoint) * 8 || 85000);
-                const crossHour = (current.time - next.time) / (1000 * 60 * 60)
-                const sleepTime = crossHour > 21 - tier ? (crossHour / 8) + tier : 0
-                const diffHour = crossHour - sleepTime;
-                const multiPlaySpeed = avgLivePoints * timesPerHour;
-                const cpPlaySpeed = avgCPPoints * cpTimesPerHour;
-                /*
-                计算配比
-                若协力直线能直接到达目标pt，那么全当协力算
-                若不是，直接按拉满算
-                然后计算协力直线和cp直线交点的解
-                 */
-                const getMax = (livePoint: number[]) => {
-                    let max = avgLivePoints;
-                    for (let i2 = 0; i2 < livePoint.length; i2++) {
-                        if (livePoint[i2] > max && livePoint[i2] / avgLivePoints < 1.5) {
-                            max = livePoint[i2];
-                        }
-                    }
-                    return max;
-                }
-                //判断能否达到线
-                const reachable = getMax(livePoint) * (timesPerHour * diffHour + 8 / 3) > diff;
-                if (reachable) {
-                    multiPlayTimes += diffHour * timesPerHour;
-                    const addCPs = Math.ceil(diff / avgLivePoints * Math.ceil(avgLivePoints / 20));
-                    //const addCPs = Math.ceil(diff/20);
-                    multiPlayCPs += addCPs;
-                    changeCPs += addCPs;
-                } else {
-                    //计算交点
-                    /*
-                    (a是协力时速，b是cp时速，d是分差，t是总时间)
-                    a * t_1 + b * t_2 = d
-                    t_1 + t_2 = t
-                    => a * t_1 + b * (t - t_1) = d
-                    => (a - b) * t_1 + b * t = d
-                    => t_1 = (d - b * t) / (a - b)
-                    t_2 = t - t_1
-                     */
-                    const [a, b, d, t] = [multiPlaySpeed, cpPlaySpeed, diff, diffHour];
-                    const t_1 = (d - b * t) / (a - b);
-                    const t_2 = t - t_1;
-                    multiPlayTimes += t_1 * timesPerHour;
-                    const addCPs = Math.ceil(a * t_1 / avgLivePoints * Math.ceil(avgLivePoints / 20)) - t_2 * cpTimesPerHour * 1600;
-                    multiPlayCPs += addCPs //Math.ceil(a * t_1 / 20);
-                    changeCPs += addCPs //Math.ceil(a * t_1 / 20) - t_2 * timesPerHour * 1600;
-                    /*console.log(
-                      '开始时间 ', new Date(next.time).toLocaleString(),
-                      '\n结束时间 ', new Date(current.time).toLocaleString(),
-                      '\navgLivePoints ',avgLivePoints,
-                      '\navgCPPoints ', avgCPPoints,
-                      '\naddMultiPlayHour ', t_1,
-                      '\naddCPPlayHour ', t_2,
-                      '\nmultiPlaySpeed ',multiPlaySpeed,
-                      '\ncpPlaySpeed ',cpPlaySpeed,
-                      '\n+ ',t_1 * a / 20,
-                      '\n- ',t_2 * 26 * 1600,
-                      '\ncpPoints', cpPoints,
-                      '\nlivePoint', livePoint,
-                      '\n-----------------------------')*/
-                }
-            } else if (diff > 50000 && diff < 110000) {
-                challengePlayTimes += 1;
-                changeCPs -= 1600;
-                cpPoints.push(diff)
-            } else {
-                //记录一把分数
-                if (diff > 8000 && diff < 20000)
-                    livePoint.push(diff)
-                multiPlayTimes += 1;
-                const addCPs = Math.ceil(diff / 20);
-                multiPlayCPs += addCPs;
-                changeCPs += addCPs;
-            }
-
-            // 跳到下一个有效 pair（防止重复处理）
-            i = j - 1
-        }
-
-        cpLists.push(drawListMerge([
-            drawList({ text: '估计协力次数' }),
-            drawList({ text: `${Math.floor(multiPlayTimes)}` })
-        ], widthMax))
-        cpLists.push(line)
-        cpLists.push(drawListMerge([
-            drawList({ text: '估计协力CP' }),
-            drawList({ text: `${Math.floor(multiPlayCPs)}` })
-        ], widthMax));
-        cpLists.push(line)
-        const avgLivePoints = Math.floor(avg(livePoint.length > 50 ? livePoint.slice(0, 50) : livePoint));
-        const avgCPPoints = Math.floor(avg(cpPoints.length > 50 ? cpPoints.slice(0, 50) : cpPoints));
-        cpLists.push(drawListMerge([
-            drawList({ text: '把均pt(协力/CP)' }),
-            drawList({ text: `${Math.floor(avg(livePoint))} / ${Math.floor(avg(cpPoints))}` })
-        ], widthMax));
-        cpLists.push(line)
-        cpLists.push(drawListMerge([
-            drawList({ text: '把均pt(近50把)' }),
-            drawList({ text: `${avgLivePoints} / ${avgCPPoints}` })
-        ], widthMax))
-        cpLists.push(line)
-        cpLists.push(drawListMerge([
-            drawList({ text: '估计清CP次数' }),
-            drawList({ text: `${Math.floor(challengePlayTimes)}` })
-        ], widthMax))
-        cpLists.push(line)
-        cpLists.push(drawListMerge([
-            drawList({ text: '估计CP积累' }),
-            drawList({ text: `${Math.floor(changeCPs)}` })
-        ], widthMax))
-        all.push(drawDatablock({ list: cpLists, topLeftText: `CP追踪` }))
-    }
 
     //近期统计数据
     const timeList = [1, 3, 12, 24]
@@ -390,7 +211,7 @@ export async function drawTopRateDetail(eventId: number, playerId: number, tier:
                 list.push(drawListMerge([timeImage, drawList({ text: '数据不足' })], widthMax))
             } else {
                 const averageTime = getAverageTime(timestamps)
-                list.push(drawListMerge([timeImage, drawList({ text: `${count}` }), drawList({ text: timestamps.length <= 1 ? '-' : `${(new Date(averageTime)).toTimeString().slice(3, 8)}` }), drawList({ text: count == 0 ? '-' : `${Math.floor(sumScore / count)}` })], widthMax))
+                list.push(drawListMerge([timeImage, drawList({ text: `${count}` }), drawList({ text: timestamps.length <= 1 ? '-' : `${(new Date(averageTime)).toTimeString().slice(3, 8)}` }), drawList({ text: count == 0 ? '-' : `${(sumScore / count).toFixed(2)}` })], widthMax))
             }
             list.push(line)
         }
@@ -413,12 +234,12 @@ export async function drawTopRateDetail(eventId: number, playerId: number, tier:
 }
 
 //睡眠时间监测
-export async function drawTopSleepStat(eventId: number, playerId: number, tier: number, mainServer: Server, time: number, compress: boolean) {
-    var event = new Event(eventId);
-    var cutoffEventTop = new CutoffEventTop(eventId, mainServer);
-    await cutoffEventTop.initFull(0);
-    if (!cutoffEventTop.isExist) {
-        return [`错误: ${serverNameFullList[mainServer]} ${eventId} 活动不存在或数据不足`];
+export async function drawMonthlyRankingTopSleepStat(monthlyRankingId: number, playerId: number, tier: number, mainServer: Server, time: number, compress: boolean) {
+    var monthlyRanking = new MonthlyRanking(monthlyRankingId);
+    var monthlyRankingCutoffTop = new MonthlyRankingCutoffTop(monthlyRankingId, mainServer);
+    await monthlyRankingCutoffTop.initFull(0);
+    if (!monthlyRankingCutoffTop.isExist) {
+        return [`错误: ${serverNameFullList[mainServer]} ${monthlyRankingId} 不存在或数据不足`];
     }
     //if (cutoffEventTop.status != "in_progress") {
     //return [`当前主服务器: ${serverNameFullList[mainServer]}没有进行中的活动`]
@@ -440,13 +261,13 @@ export async function drawTopSleepStat(eventId: number, playerId: number, tier: 
     {
         const list: Array<Image | Canvas> = [];
         //名片
-        var userInRankings = cutoffEventTop.getLatestRanking();
+        var userInRankings = monthlyRankingCutoffTop.getLatestRanking();
         for (let i = 0; i < userInRankings.length; i++) {
             if (playerId && userInRankings[i].uid != playerId || tier && tier != i + 1) {
                 continue
             }
             playerId = userInRankings[i].uid
-            var user = cutoffEventTop.getUserByUid(playerId);
+            var user = monthlyRankingCutoffTop.getUserByUid(playerId);
             var playerRankingImage = await drawPlayerRankingInList(user, 'white', mainServer);
             if (playerRankingImage != undefined) {
                 list.push(resizeImage({ image: playerRankingImage, widthMax }));
@@ -455,9 +276,9 @@ export async function drawTopSleepStat(eventId: number, playerId: number, tier: 
         if (list.length > 0) {
             all.push(drawDatablock({ list, maxWidth: widthMax }))
         } else
-            return [`玩家当前不在${serverNameFullList[mainServer]}: 活动${eventId}前十名里`]
+            return [`玩家当前不在${serverNameFullList[mainServer]}: 月榜${monthlyRankingId}前十名里`]
     }
-    const playerRating = getRatingByPlayer(cutoffEventTop.points, playerId).filter(item => item.time < event.endAt[mainServer])
+    const playerRating = getRatingByPlayer(monthlyRankingCutoffTop.points, playerId).filter(item => item.time < monthlyRanking.endAt[mainServer])
     const list = [];
     list.push(drawListMerge([drawList({ key: '日期' }), drawList({ key: '休息时段' }), drawList({ key: '休息时长' })], widthMax));
     const sleep: { start: number; end: number }[] = []
@@ -511,49 +332,49 @@ export async function drawTopSleepStat(eventId: number, playerId: number, tier: 
             ], widthMax))
             list.push(line)
         }
-        const nowEvent = new Event(eventId);
+        const nowMonthlyRanking = new MonthlyRanking(monthlyRankingId);
         list.push(line)
         list.push(drawListMerge([
             drawList({ text: '总计: ' }),
             drawList({ text: toTimeStr(Math.floor(totalSleepTime / (1000 * 60))) }),
             drawList({ text: '平均每天: ' }),
-            drawList({ text: toTimeStr(Math.floor(24 * 60 * totalSleepTime / (playerRating[0].time - nowEvent.startAt[mainServer]))) })
+            drawList({ text: toTimeStr(Math.floor(24 * 60 * totalSleepTime / (playerRating[0].time - nowMonthlyRanking.startAt[mainServer]))) })
         ], widthMax))
     } else {
         list.push(drawListMerge([drawList({ text: '数据不足' })], widthMax))
     }
     //折线图
-    list.push(await drawCutOffEventTopSingleChart(cutoffEventTop, false, playerId, mainServer))
+    list.push(await drawMonthlyRankingCutOffTopSingleChart(monthlyRankingCutoffTop, false, playerId, mainServer))
     all.push(drawDatablock({ list, topLeftText: `休息时间统计` }))
 
-    all.push(await drawEventDatablock(event, [mainServer]));
+    all.push(await drawMonthlyRankingDatablock(monthlyRanking, [mainServer]));
     var buffer = await outputFinalBuffer({ imageList: all, useEasyBG: true, compress: compress })
 
     return [buffer];
 }
 
-export async function drawTopRateRanking(eventId: number, mainServer: Server, compress: boolean, time: number, date: Date, compareTier: number, comparePlayerUid: number) {
-    const cutoffEventTop = new CutoffEventTop(eventId, mainServer);
-    await cutoffEventTop.initFull(0);
-    if (!cutoffEventTop.isExist) {
-        return [`错误: ${serverNameFullList[mainServer]} 活动不存在或数据不足`];
+export async function drawMonthlyRankingTopRateRanking(monthlyRankingId: number, mainServer: Server, compress: boolean, time: number, date: Date, compareTier: number, comparePlayerUid: number) {
+    const monthlyRankingCutoffTop = new MonthlyRankingCutoffTop(monthlyRankingId, mainServer);
+    await monthlyRankingCutoffTop.initFull(0);
+    if (!monthlyRankingCutoffTop.isExist) {
+        return [`错误: ${serverNameFullList[mainServer]} 月榜不存在或数据不足`];
     }
-    if (!date && cutoffEventTop.status != "in_progress") {
-        return [`当前主服务器: ${serverNameFullList[mainServer]}没有进行中的活动`]
+    if (!date && monthlyRankingCutoffTop.status != "in_progress") {
+        return [`当前主服务器: ${serverNameFullList[mainServer]}没有进行中的月榜`]
     }
     if (compareTier && !(Number.isInteger(compareTier) && compareTier >= 1 && compareTier <= 10)) {
         return [`错误: 档位${compareTier}不存在`]
     }
-    if (date && (date.getTime() < cutoffEventTop.startAt || date.getTime() > cutoffEventTop.endAt)) {
-        return [`错误: ${date.toLocaleString()}不在当前活动时间内`]
+    if (date && (date.getTime() < monthlyRankingCutoffTop.startAt || date.getTime() > monthlyRankingCutoffTop.endAt)) {
+        return [`错误: ${date.toLocaleString()}不在当前月榜时间内`]
     }
 
     const all = [];
     const widthMax = 3000;
 
     let list = []
-    const top10SpeedRankingData = getTopRatingDuringTime(cutoffEventTop, time, date, compareTier, comparePlayerUid);
-    const compareName = compareTier ? cutoffEventTop.getUserNameById(cutoffEventTop.getLatestRanking()[compareTier - 1].uid) : (comparePlayerUid ? cutoffEventTop.getUserNameById(comparePlayerUid) : null);
+    const top10SpeedRankingData = getTopRatingDuringTime(monthlyRankingCutoffTop, time, date, compareTier, comparePlayerUid);
+    const compareName = compareTier ? monthlyRankingCutoffTop.getUserNameById(monthlyRankingCutoffTop.getLatestRanking()[compareTier - 1].uid) : (comparePlayerUid ? monthlyRankingCutoffTop.getUserNameById(comparePlayerUid) : null);
     const headerStringArray = ['排名', 'uid', 'id', '分数', '分差', compareName ? `与${compareName}分差` : null, `${time}min分数变化`, '速度排名', '分数变动次数', '前空白', '尾空白', '把均pt', '当前数据获取时间', '上次数据获取时间']
     //const headerStringArray = ['順位', 'uid', 'id', 'ポイント', '上との差', compareName ? `${compareName}さんと差` : null, `${time}時速`, '時速ランキング', '今の時間', '1hスタート時間']
     const top10RankingTable: Canvas[][] = Array.from({ length: 10 }, () => []);
@@ -573,7 +394,7 @@ export async function drawTopRateRanking(eventId: number, mainServer: Server, co
         //对每一个排名进行遍历
         for (let i = 0; i < 10; i++) {
             //绘制字段图并存储各个宽度
-            const img = drawList({ text: String(top10SpeedRankingData[i][value] || '---') });
+            const img = drawList({ text: String(top10SpeedRankingData[i][value] || '---')});
             width.push(img.width);
             height.push(img.height);
             top10RankingTable[i].push(img);
@@ -593,7 +414,7 @@ export async function drawTopRateRanking(eventId: number, mainServer: Server, co
         gap: 10,
         color: "#a8a8a8"
     })
-    all.push(drawTitle('t10时速排名', `${serverNameFullList[mainServer]}`));
+    all.push(drawTitle('t10月榜时速排名', `${serverNameFullList[mainServer]}`));
     list.push(drawListMerge(header.filter(Boolean), widthMax, false, "top", drawWidth))
     top10RankingTable.forEach((row) => {
         list.push(line)
@@ -601,25 +422,25 @@ export async function drawTopRateRanking(eventId: number, mainServer: Server, co
     })
 
     all.push(drawDatablock({ list }));
-    var event = new Event(eventId);
-    all.push(await drawEventDatablock(event, [mainServer]));
+    var monthlyRanking = new MonthlyRanking(monthlyRankingId);
+    all.push(await drawMonthlyRankingDatablock(monthlyRanking, [mainServer]));
 
     let buffer = await outputFinalBuffer({ imageList: all, useEasyBG: true, compress: compress })
     return [buffer];
 }
 
-export async function drawTopTenMinuteSpeed(eventId: number, mainServer: Server, compress: boolean = false, date: Date, time = 60, allPlayer = false) {
-    const cutoffEventTop = new CutoffEventTop(eventId, mainServer);
-    await cutoffEventTop.initFull(0);
+export async function drawMonthlyRankingTopTenMinuteSpeed(monthlyRankingId: number, mainServer: Server, compress: boolean = false, date: Date, time = 60, allPlayer = false) {
+    const monthlyRankingCutoffTop = new MonthlyRankingCutoffTop(monthlyRankingId, mainServer);
+    await monthlyRankingCutoffTop.initFull(0);
 
-    if (!cutoffEventTop.isExist) {
-        return [`错误: ${serverNameFullList[mainServer]} 活动不存在或数据不足`];
+    if (!monthlyRankingCutoffTop.isExist) {
+        return [`错误: ${serverNameFullList[mainServer]} 月榜不存在或数据不足`];
     }
-    if (!date && cutoffEventTop.status != "in_progress") {
-        return [`当前主服务器: ${serverNameFullList[mainServer]}没有进行中的活动`]
+    if (!date && monthlyRankingCutoffTop.status != "in_progress") {
+        return [`当前主服务器: ${serverNameFullList[mainServer]}没有进行中的月榜`]
     }
-    if (date && (date.getTime() < cutoffEventTop.startAt || date.getTime() > cutoffEventTop.endAt)) {
-        return [`错误: ${date.toLocaleString()}不在当前活动时间内`]
+    if (date && (date.getTime() < monthlyRankingCutoffTop.startAt || date.getTime() > monthlyRankingCutoffTop.endAt)) {
+        return [`错误: ${date.toLocaleString()}不在当前月榜时间内`]
     }
 
     const all = [];
@@ -629,11 +450,11 @@ export async function drawTopTenMinuteSpeed(eventId: number, mainServer: Server,
     const targetTime = date ? date.getTime() : Date.now();
     const startTimeLimit = targetTime - (time * 60 * 1000);
 
-    const allPointsInRange = cutoffEventTop.points.filter(p => p.time >= startTimeLimit && p.time <= targetTime);
+    const allPointsInRange = monthlyRankingCutoffTop.points.filter(p => p.time >= startTimeLimit && p.time <= targetTime);
     const displayTimeStamps = Array.from(new Set(allPointsInRange.map(p => p.time))).sort((a, b) => a - b);
 
     const bufferTime = startTimeLimit - (30 * 60 * 1000);
-    const calculationSource = cutoffEventTop.points.filter(p => p.time >= bufferTime && p.time <= targetTime);
+    const calculationSource = monthlyRankingCutoffTop.points.filter(p => p.time >= bufferTime && p.time <= targetTime);
 
     let targetUids: number[];
     let rankingMap = new Map<number, number>();
@@ -641,9 +462,9 @@ export async function drawTopTenMinuteSpeed(eventId: number, mainServer: Server,
     let topTenUids = new Set<number>();
     let currentRanking: { uid: number; value: number }[] = [];
     if (!date) {
-        currentRanking = cutoffEventTop.getLatestRanking().slice(0, 10).map(r => ({ uid: r.uid, value: r.point }));
+        currentRanking = monthlyRankingCutoffTop.getLatestRanking().slice(0, 10).map(r => ({ uid: r.uid, value: r.point }));
     } else {
-        const sortedPoints = [...cutoffEventTop.points].sort((a, b) => a.time - b.time);
+        const sortedPoints = [...monthlyRankingCutoffTop.points].sort((a, b) => a.time - b.time);
         const group = findTargetTimeRankingGroup(sortedPoints, targetTime);
         currentRanking = group.sort((a, b) => b.value - a.value).slice(0, 10);
     }
@@ -673,7 +494,7 @@ export async function drawTopTenMinuteSpeed(eventId: number, mainServer: Server,
     const players = [];
     for (const uid of targetUids) {
         const point = rankingMap.get(uid) || 0;
-        const name = cutoffEventTop.getUserNameById(uid);
+        const name = monthlyRankingCutoffTop.getUserNameById(uid);
         const playerRating = getRatingByPlayer(calculationSource, uid);
 
         const speeds: string[] = [];
@@ -748,7 +569,7 @@ export async function drawTopTenMinuteSpeed(eventId: number, mainServer: Server,
         players.forEach((player, pIdx) => {
             const val = player.speeds[tIdx] ?? "---";
             const playerColor = colorMap.get(player.name) || '#505050';
-            const speedImg = drawList({ text: val, color:  val == 0 || val == "---" ? "#CCCCCC" : playerColor });
+            const speedImg = drawList({ text: val, color: val == 0 || val == "---" ? "#CCCCCC" : playerColor });
             row.push(speedImg);
             colWidths[pIdx + 1] = Math.max(colWidths[pIdx + 1], speedImg.width);
         });
@@ -774,18 +595,18 @@ export async function drawTopTenMinuteSpeed(eventId: number, mainServer: Server,
     });
 
     all.push(drawDatablock({ list }));
-    all.push(await drawEventDatablock(new Event(eventId), [mainServer]));
+    all.push(await drawMonthlyRankingDatablock(new MonthlyRanking(monthlyRankingId), [mainServer]));
 
     const buffer = await outputFinalBuffer({ imageList: all, useEasyBG: true, compress: compress });
     return [buffer];
 }
 
-export async function drawTopRunningStatus(eventId: number, playerId: number, tier: number, mainServer: Server, time: number, compress: boolean) {
-    var event = new Event(eventId);
-    var cutoffEventTop = new CutoffEventTop(eventId, mainServer);
-    await cutoffEventTop.initFull(0);
-    if (!cutoffEventTop.isExist) {
-        return [`错误: ${serverNameFullList[mainServer]} ${eventId} 活动不存在或数据不足`];
+export async function drawMonthlyRankingTopRunningStatus(monthlyRankingId: number, playerId: number, tier: number, mainServer: Server, time: number, compress: boolean) {
+    var monthlyRanking = new MonthlyRanking(monthlyRankingId);
+    var monthlyRankingCutoffTop = new MonthlyRankingCutoffTop(monthlyRankingId, mainServer);
+    await monthlyRankingCutoffTop.initFull(0);
+    if (!monthlyRankingCutoffTop.isExist) {
+        return [`错误: ${serverNameFullList[mainServer]} ${monthlyRankingId} 月榜不存在或数据不足`];
     }
     //if (cutoffEventTop.status != "in_progress") {
     //return [`当前主服务器: ${serverNameFullList[mainServer]}没有进行中的活动`]
@@ -807,13 +628,13 @@ export async function drawTopRunningStatus(eventId: number, playerId: number, ti
     {
         const list: Array<Image | Canvas> = [];
         //名片
-        var userInRankings = cutoffEventTop.getLatestRanking();
+        var userInRankings = monthlyRankingCutoffTop.getLatestRanking();
         for (let i = 0; i < userInRankings.length; i++) {
             if (playerId && userInRankings[i].uid != playerId || tier && tier != i + 1) {
                 continue
             }
             playerId = userInRankings[i].uid
-            var user = cutoffEventTop.getUserByUid(playerId);
+            var user = monthlyRankingCutoffTop.getUserByUid(playerId);
             var playerRankingImage = await drawPlayerRankingInList(user, 'white', mainServer);
             if (playerRankingImage != undefined) {
                 list.push(resizeImage({ image: playerRankingImage, widthMax }));
@@ -822,9 +643,9 @@ export async function drawTopRunningStatus(eventId: number, playerId: number, ti
         if (list.length > 0) {
             all.push(drawDatablock({ list, maxWidth: widthMax }))
         } else
-            return [`玩家当前不在${serverNameFullList[mainServer]}: 活动${eventId}前十名里`]
+            return [`玩家当前不在${serverNameFullList[mainServer]}: 月榜${monthlyRankingId}前十名里`]
     }
-    const playerRating = getRatingByPlayer(cutoffEventTop.points, playerId).filter(item => item.time < event.endAt[mainServer])
+    const playerRating = getRatingByPlayer(monthlyRankingCutoffTop.points, playerId).filter(item => item.time < monthlyRanking.endAt[mainServer])
     const list = [];
     list.push(drawListMerge([
         drawList({ key: '日期' }),
@@ -913,126 +734,23 @@ export async function drawTopRunningStatus(eventId: number, playerId: number, ti
             ], widthMax, false, "top", [widthMax * 0.15, widthMax * 0.3, widthMax * 0.15, widthMax * 0.15, widthMax * 0.25]))
             list.push(line)
         }
-        const nowEvent = new Event(eventId);
+        const nowMonthlyRanking = new MonthlyRanking(monthlyRankingId);
         list.push(line)
         list.push(drawListMerge([
             drawList({ text: '总计: ' }),
             drawList({ text: toTimeStr(Math.floor(totalRunTime / (1000 * 60))) }),
             drawList({ text: '平均每天: ' }),
-            drawList({ text: toTimeStr(Math.floor(24 * 60 * totalRunTime / (playerRating[0].time - nowEvent.startAt[mainServer]))) })
+            drawList({ text: toTimeStr(Math.floor(24 * 60 * totalRunTime / (playerRating[0].time - nowMonthlyRanking.startAt[mainServer]))) })
         ], widthMax))
     } else {
         list.push(drawListMerge([drawList({ text: '数据不足' })], widthMax))
     }
     //折线图
-    list.push(await drawCutOffEventTopSingleChart(cutoffEventTop, false, playerId, mainServer))
+    list.push(await drawMonthlyRankingCutOffTopSingleChart(monthlyRankingCutoffTop, false, playerId, mainServer))
     all.push(drawDatablock({ list, topLeftText: `稼动时间统计` }))
 
 
-    all.push(await drawEventDatablock(event, [mainServer]));
-    var buffer = await outputFinalBuffer({ imageList: all, useEasyBG: true, compress: compress })
-
-    return [buffer];
-}
-
-export async function drawTopPointStat(eventId: number, playerId: number, tier: number, limit: string, mainServer: Server, compress: boolean) {
-
-    var event = new Event(eventId);
-    var cutoffEventTop = new CutoffEventTop(eventId, mainServer);
-    await cutoffEventTop.initFull(0);
-    if (!cutoffEventTop.isExist) {
-        return [`错误: ${ serverNameFullList[mainServer] } ${ eventId } 活动不存在或数据不足`];
-    }
-
-    var all = [];
-    const widthMax = 1000, line: Canvas = drawDottedLine({
-        width: widthMax,
-        height: 30,
-        startX: 5,
-        startY: 15,
-        endX: widthMax - 5,
-        endY: 15,
-        radius: 2,
-        gap: 10,
-        color: "#a8a8a8"
-    })
-    all.push(drawTitle('分数图', `${ serverNameFullList[mainServer] }`));
-    {
-        const list: Array<Image | Canvas> = [];
-        //名片
-        var userInRankings = cutoffEventTop.getLatestRanking();
-        for (let i = 0; i < userInRankings.length; i++) {
-            if (playerId && userInRankings[i].uid != playerId || tier && tier != i + 1) {
-                continue
-            }
-            playerId = userInRankings[i].uid
-            var user = cutoffEventTop.getUserByUid(playerId);
-            var playerRankingImage = await drawPlayerRankingInList(user, 'white', mainServer);
-            if (playerRankingImage != undefined) {
-                list.push(resizeImage({ image: playerRankingImage, widthMax }));
-            }
-        }
-        if (list.length > 0) {
-            all.push(drawDatablock({ list, maxWidth: widthMax }))
-        } else
-            return [`玩家当前不在${ serverNameFullList[mainServer] }: 活动${ eventId }前十名里`]
-    }
-    all.push(drawDatablock({
-        list: [await drawSinglePointChart(cutoffEventTop, playerId, limit)],
-        topLeftText: `分数变动散点图`,
-        maxWidth: widthMax
-    }))
-
-    // 3. 数据分析统计块
-    {
-        const statList = [];
-        // 获取筛选后的差值数据
-        const diffsData = getSinglePlayDiffs(cutoffEventTop.points, playerId, limit);
-        const diffs = diffsData.map(d => d.value);
-
-        if (diffs.length > 0) {
-            // --- 统计学特征计算 ---
-            const count = diffs.length;
-            const avg = diffs.reduce((a, b) => a + b, 0) / count;
-            const sorted = [...diffs].sort((a, b) => a - b);
-            const median = count % 2 !== 0 ? sorted[Math.floor(count / 2)] : (sorted[count / 2 - 1] + sorted[count / 2]) / 2;
-
-            // 标准差 (稳定性)
-            const stdDev = Math.sqrt(diffs.map(x => Math.pow(x - avg, 2)).reduce((a, b) => a + b, 0) / count);
-
-            // 众数计算
-            const counts = new Map();
-            let maxFreq = 0;
-            diffs.forEach(x => {
-                const f = (counts.get(x) || 0) + 1;
-                counts.set(x, f);
-                if (f > maxFreq) maxFreq = f;
-            });
-            const modes = Array.from(counts.entries()).filter(([_, f]) => f === maxFreq).map(([v]) => v);
-
-            // --- 绘制列表内容 ---
-            const addRow = (key: string, value: string) => {
-                statList.push(drawListMerge([drawList({ text: key }), drawList({ text: value })], widthMax));
-                statList.push(line);
-            };
-
-            addRow('样本总数', `${count} 把`);
-            addRow('分数区间', `${sorted[0]} ~ ${sorted[count - 1]}`);
-            addRow('平均出分 (Mean)', `${avg.toFixed(1)}`);
-            addRow('中位数 (Median)', `${median}`);
-            addRow('出分众数 (Mode)', maxFreq > 1 ? `${modes.slice(0, 3).join(', ')} (频次:${maxFreq})` : '无明显众数');
-            addRow('标准差 (StdDev)', `${stdDev.toFixed(1)}`);
-            addRow('变异系数 (CV)', `${(stdDev / avg * 100).toFixed(2)}%`);
-
-            statList.pop(); // 移除最后一条多余的虚线
-        } else {
-            statList.push(drawList({ text: '当前区间内无有效出分数据' }));
-        }
-
-        all.push(drawDatablock({ list: statList, topLeftText: `数据特征分析` }));
-    }
-
-    all.push(await drawEventDatablock(event, [mainServer]));
+    all.push(await drawMonthlyRankingDatablock(monthlyRanking, [mainServer]));
     var buffer = await outputFinalBuffer({ imageList: all, useEasyBG: true, compress: compress })
 
     return [buffer];
@@ -1073,70 +791,6 @@ export function getRatingByPlayer(points: Array<{
             value: map[t]
         }
     })
-}
-
-export function getTopRatingDuringTime(cutoffTop: CutoffEventTop | MonthlyRankingCutoffTop, windowTimeLimit: number = 60, date: Date, compareTier: number, comparePlayerUid: number) {
-    const limitPoints = date ? cutoffTop.points.filter(item => item.time <= date.getTime()) : cutoffTop.points;
-    const now = limitPoints.at(-1).time;
-    const top10List: { uid: number, point: number }[] = limitPoints.slice(-10).map(({ uid, value }) => ({
-        uid,
-        point: value
-    }));
-    const top10_Old: {
-        time: number,
-        uid: number,
-        value: number
-    }[] = findTargetTimeRankingGroup(limitPoints, now - windowTimeLimit * 60 * 1000);
-    const old_time = top10_Old?.[0]?.time;
-    const top10_ranking: {
-        ranking: number,
-        uid: number,
-        name: string,
-        point: number,
-        distanceToAbove: number,
-        distanceToPlayer: number,
-        speedInTime: number,
-        speedRanking: number,
-        playTimes: number,
-        firstTime: string,
-        lastTime: string,
-        averagePoints: number,
-        nowTime: string,
-        oldTime: string,
-    }[] = [];
-    const speed: { uid: number, speed: number, speedRanking: number }[] = computeSpeed(top10List, top10_Old)
-    if (!top10_Old?.length) return null;
-
-    top10List.forEach((info, index) => {
-        const uid = info.uid;
-        const nowPoints = info.point;
-        const oldData = top10_Old.find(item => item.uid == uid);
-        const comparePlayerPoints = compareTier ? (top10List?.[compareTier - 1]?.point) : (comparePlayerUid ? top10List.find(item => item.uid == comparePlayerUid)?.point : 0);
-        const playerSpeedInfo = speed.find(item => item.uid == uid);
-        const playerTimesInfo = countSpeedData(getRatingByPlayer(limitPoints.filter(item => item.time >= old_time), uid))
-        const fmt = new Intl.DateTimeFormat('zh-CN', {
-            timeZone: 'Asia/Shanghai',
-            dateStyle: 'medium',
-            timeStyle: 'medium'
-        });
-        top10_ranking.push({
-            ranking: index + 1,
-            uid: uid,
-            name: cutoffTop.getUserNameById(uid),
-            point: nowPoints,
-            distanceToAbove: index == 0 ? 0 : top10List[index - 1].point - nowPoints,
-            distanceToPlayer: comparePlayerPoints ? nowPoints - comparePlayerPoints : 0,
-            speedInTime: playerSpeedInfo.speed,
-            speedRanking: playerSpeedInfo.speedRanking,
-            playTimes: playerTimesInfo.count,
-            firstTime: playerTimesInfo.firstTime > 0 ? `${Math.round((playerTimesInfo.firstTime - old_time) / (60 * 1000))}min` : '',
-            lastTime: playerTimesInfo.lastTime > 0 ? `${Math.round((playerTimesInfo.lastTime - now) / (60 * 1000))}min` : '',
-            averagePoints: playerTimesInfo.count > 0 ? Math.floor(playerSpeedInfo.speed / playerTimesInfo.count) : 0,
-            nowTime: fmt.format(new Date(now)),
-            oldTime: fmt.format(new Date(old_time))
-        })
-    })
-    return top10_ranking;
 }
 
 export function getAverageTime(timestamps: Array<number>) {

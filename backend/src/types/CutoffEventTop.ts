@@ -1,7 +1,8 @@
 import { Server } from "@/types/Server";
 import { Event } from '@/types/Event';
 import { callAPIAndCacheResponse } from "@/api/getApi";
-import { Bestdoriurl } from "@/config";
+import { Bestdoriurl, EVENTRANKING_TURNS, resolveSourceUrls } from "@/config";
+import { logger } from '@/logger';
 
 
 export class CutoffEventTop{
@@ -50,6 +51,30 @@ export class CutoffEventTop{
             this.status = 'in_progress';
         }
     }
+    private getEventTopSources(): { url: string, name: string }[] {
+        return resolveSourceUrls(Server[this.server], EVENTRANKING_TURNS);
+    }
+
+    getFinalApiUrl (){
+        const sources = this.getEventTopSources();
+        return sources[0]?.url || Bestdoriurl;
+    }
+    async getFinalEventTopData (interval:number = 3600000){
+        const sources = this.getEventTopSources();
+        for (let i = 0; i < sources.length; i++) {
+            try {
+                return await callAPIAndCacheResponse(
+                    `${sources[i].url}/api/eventtop/data?server=${<number>this.server}&event=${this.eventId}&mid=0&interval=${interval}`,
+                    0, 3
+                );
+            } catch (e) {
+                if (e.response?.status != 404) {
+                    logger('CutoffEventTop.ts/getFinalEventTopData', `${sources[i].name}获取失败，尝试下一个`);
+                }
+            }
+        }
+        return null;
+    }
     async initFull(interval = 3600000){
         if (!this.isExist){
             return
@@ -57,17 +82,17 @@ export class CutoffEventTop{
         if(this.isInitfull){
             return;
         }
-        const topData = await callAPIAndCacheResponse(`${Bestdoriurl}/api/eventtop/data?server=${<number>this.server}&event=${this.eventId}&mid=0&interval=${interval}`);
-        if(topData == undefined){
+        const topData = await this.getFinalEventTopData(interval);
+        if(topData == undefined || topData == null){
             this.isExist = false;
             return;
         }
         this.isExist = true;
-        this.points = topData['points'] as {
-            time:number,
-            uid:number,
-            value:number
-        }[];
+        this.points = (topData['points'] ?? []).map((point) => ({
+            time: Number(point.time ?? point.timestamp),
+            uid: point.uid,
+            value: point.value,
+        })).filter((point) => Number.isFinite(point.time));
         this.users = topData['users'] as {
             uid:number,
             name:string,
@@ -124,13 +149,12 @@ export class CutoffEventTop{
         return chartDate;
     }
     getLatestRanking():{uid:number,point:number}[]{
-        var result:{uid:number,point:number}[] =[]
-        var index = this.points.length -10;
-        while(index<this.points.length){
-            const element = this.points[index];
-            result.push({uid:element.uid,point:element.value});
-            index ++;
-        }
+        const result:{uid:number,point:number}[] = []
+        if (!this.points?.length) return result
+        const latestTime = Math.max(...this.points.map(point => point.time))
+        const latestPoints = this.points.filter(point => point.time === latestTime)
+        const snapshot = latestPoints.length ? latestPoints : this.points.slice(-10)
+        for (const element of snapshot) result.push({ uid: element.uid, point: element.value })
         result.sort((a,b)=>b.point-a.point)
         return result;
     }

@@ -1,5 +1,6 @@
-import { BestdoriapiPath, Bestdoriurl, configPath, tierListOfServer } from '@/config'
+import { BestdoriapiPath, Bestdoriurl, configPath, MONTHRANKING_TURNS, tierListOfServer } from '@/config'
 import { callAPIAndCacheResponse } from '@/api/getApi'
+import { callRankingSources } from '@/api/rankingSources'
 import { readJSON } from '@/types/utils'
 import { readExcelFile } from '@/types/utils'
 import { logger } from '@/logger'
@@ -13,6 +14,16 @@ async function loadMainAPI(useCache: boolean = false) {
     logger('mainAPI', 'loading mainAPI...')
     const promiseAll = Object.keys(BestdoriapiPath).map(async (key) => {
         const maxRetry = 3
+        if (key === 'monthlyRanking') {
+            const cacheTime = useCache ? Infinity : 0
+            return mainAPI[key] = await callRankingSources(
+                'global',
+                MONTHRANKING_TURNS,
+                BestdoriapiPath[key],
+                cacheTime,
+                maxRetry,
+            )
+        }
         if (useCache) {
             return mainAPI[key] = await callAPIAndCacheResponse(Bestdoriurl + BestdoriapiPath[key], 1 / 0);
         } else {

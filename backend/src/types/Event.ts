@@ -557,3 +557,64 @@ export function getRecentEventListByEventAndServer(event: Event, server: Server,
     sortEventList(tempEventList, [server])
     return tempEventList.slice(tempEventList.length - count, tempEventList.length)
 }
+
+// 获取与指定时间范围有交集的活动，供月榜详情关联活动使用。
+export function getEventListByTimeRange(
+    rangeStart?: number,
+    rangeEnd?: number,
+    displayedServerList: Server[] = globalDefaultServer,
+) {
+    const eventIdList: number[] = Object.keys(mainAPI['events']).map(Number);
+    const result: Event[] = [];
+    if (rangeStart == null && rangeEnd == null) return result;
+
+    const presentEventByServer = new Map<Server, Event | null>();
+    for (const server of displayedServerList) {
+        presentEventByServer.set(server, getPresentEvent(server));
+    }
+
+    for (const eventId of eventIdList) {
+        const event = new Event(eventId);
+        for (const server of displayedServerList) {
+            const window = getEventTimeWindowByServer(
+                event,
+                server,
+                presentEventByServer.get(server) ?? null,
+            );
+            if (!window) continue;
+            if (
+                (rangeEnd == null || window.startAt < rangeEnd) &&
+                (rangeStart == null || window.endAt > rangeStart)
+            ) {
+                result.push(event);
+                break;
+            }
+        }
+    }
+    return result;
+}
+
+function getEventTimeWindowByServer(
+    event: Event,
+    server: Server,
+    presentEvent: Event | null,
+): { startAt: number, endAt: number } | null {
+    const startAt = event.startAt[server];
+    const endAt = event.endAt[server];
+    if (startAt != null && endAt != null) return { startAt, endAt };
+
+    if (server != Server.cn || !presentEvent || event.eventId <= presentEvent.eventId) {
+        return null;
+    }
+
+    const jpStartAt = event.startAt[Server.jp];
+    const jpEndAt = event.endAt[Server.jp];
+    if (jpStartAt == null || jpEndAt == null || jpEndAt <= jpStartAt) return null;
+
+    const forecastStartAt = GetProbablyTimeDifference(event.eventId, presentEvent);
+    if (!Number.isFinite(forecastStartAt)) return null;
+    return {
+        startAt: forecastStartAt,
+        endAt: forecastStartAt + (jpEndAt - jpStartAt),
+    };
+}

@@ -7,6 +7,7 @@ import { CutoffEventTop } from '@/types/CutoffEventTop';
 import { getPresetColor } from '@/types/Color';
 import { drawList } from '@/components/list'
 import { stackImage } from '@/components/utils'
+import { getSinglePlayDiffs } from "@/view/cutoffEventTop";
 
 export async function drawCutoffChart(cutoffList: Cutoff[], setStartToZero = false, server: Server = Server['jp']) {
     //setStartToZero:是否将开始时间设置为0
@@ -50,46 +51,74 @@ export async function drawCutoffChart(cutoffList: Cutoff[], setStartToZero = fal
             pointBorderColor: tempColor.getRGBA(1),
             fill: onlyOne
         })
+
+        // 国服外部预测服务会直接返回历史预测线。
         if (cutoff.history && cutoff.history.length > 0) {
-            let data = cutoff.history.map(({time, ep}) => { return {x: new Date(time - +setStartToZero * cutoff.startAt), y: ep} })
-            data.push({ x: new Date(cutoff.endAt - +setStartToZero * cutoff.startAt), y: cutoff.predictEP })
+            const data = cutoff.history.map(({ time, ep }) => ({
+                x: new Date(time - +setStartToZero * cutoff.startAt),
+                y: ep,
+            }));
+            data.push({
+                x: new Date(cutoff.endAt - +setStartToZero * cutoff.startAt),
+                y: cutoff.predictEP,
+            });
             datasets.push({
                 label: `T${cutoff.tier} 历史预测线`,
                 borderColor: [tempColor.getRGBA(1)],
                 backgroundColor: [tempColor.getRGBA(1)],
-                data: data,
+                data,
                 borderWidth: 5,
                 borderDash: [20, 10],
                 fill: false,
                 pointRadius: 0,
                 pointHoverRadius: 0,
-            })
+            });
         }
 
         if (cutoff.status == 'in_progress') {
             if (cutoff.predictEP != null && cutoff.predictEP != 0) {
-                if (cutoff.prefix_curve.length > 0) {
-                    let data = []
-                    data = cutoff.prefix_curve.map(({time, ep}) => { return {x: new Date(time - +setStartToZero * cutoff.startAt), y: ep} })
+                let data = []
+                // 国服外部预测服务返回完整走势时，优先使用该走势。
+                if (cutoff.prefix_curve && cutoff.prefix_curve.length > 0) {
+                    data = cutoff.prefix_curve.map(({ time, ep }) => ({
+                        x: new Date(time - +setStartToZero * cutoff.startAt),
+                        y: ep,
+                    }));
                     datasets.push({
                         label: `T${cutoff.tier} 预测走势`,
                         borderColor: [tempColor.getRGBA(1)],
                         backgroundColor: [tempColor.getRGBA(1)],
-                        data: data,
+                        data,
                         borderWidth: 5,
                         borderDash: [5, 5],
                         fill: false,
                         pointRadius: 0,
                         pointHoverRadius: 0,
-                    })
-                    continue
+                    });
+                    continue;
                 }
-                let data = []
-                if (setStartToZero) {
-                    data = [{ x: new Date(0), y: cutoff.predictEP }, { x: new Date(cutoff.endAt - cutoff.startAt), y: cutoff.predictEP }]
+                const history = cutoff.getPredictionHistory()
+                if (history.length > 0) {
+                    if (setStartToZero) {
+                        for (const p of history) {
+                            data.push({ x: new Date(p.time - cutoff.startAt), y: p.ep })
+                        }
+                        data.push({ x: new Date(cutoff.endAt - cutoff.startAt), y: history[history.length - 1].ep })
+                    }
+                    else {
+                        for (const p of history) {
+                            data.push({ x: new Date(p.time), y: p.ep })
+                        }
+                        data.push({ x: new Date(cutoff.endAt), y: history[history.length - 1].ep })
+                    }
                 }
                 else {
-                    data = [{ x: new Date(cutoff.startAt), y: cutoff.predictEP }, { x: new Date(cutoff.endAt), y: cutoff.predictEP }]
+                    if (setStartToZero) {
+                        data = [{ x: new Date(0), y: cutoff.predictEP }, { x: new Date(cutoff.endAt - cutoff.startAt), y: cutoff.predictEP }]
+                    }
+                    else {
+                        data = [{ x: new Date(cutoff.startAt), y: cutoff.predictEP }, { x: new Date(cutoff.endAt), y: cutoff.predictEP }]
+                    }
                 }
                 datasets.push({
                     label: `T${cutoff.tier} 预测线`,
@@ -138,10 +167,10 @@ export async function drawCutoffChart(cutoffList: Cutoff[], setStartToZero = fal
             }
         }
         all.push(await drawTimeLineChart({ data, start: new Date(0), end: new Date(longestTime), setStartToZero }))
-        return (stackImage(all))
-    }
-    else {
-        all.push(await drawTimeLineChart({ data, start: new Date(cutoffList[0].startAt), end: new Date(cutoffList[0].endAt), setStartToZero }))
+            return (stackImage(all))
+        }
+        else {
+            all.push(await drawTimeLineChart({ data, start: new Date(cutoffList[0].startAt), end: new Date(cutoffList[0].endAt), setStartToZero }))
         return (stackImage(all))
     }
 
@@ -174,4 +203,77 @@ export async function drawCutoffEventTopChart(CutoffEventTop: CutoffEventTop, se
     }
     var data = { datasets: datasets }
     return await drawTimeLineChart({ data, start: new Date(CutoffEventTop.startAt), end: new Date(CutoffEventTop.endAt), setStartToZero }, true)
+}
+export async function drawCutOffEventTopSingleChart(CutoffEventTop: CutoffEventTop, setStartToZero = false, playerUid: number, server: Server = Server['jp']){
+  var datasets = []
+  if (CutoffEventTop == undefined) {
+    return (new Canvas(1, 1))
+  }
+  var allData = CutoffEventTop.getChartData()[playerUid];
+  function removeBraces(text: string): string {
+    var newText = text.replace(/\[[^\]]*\]/g, "");
+    return newText;
+  }
+  let colorNumber = 0
+
+  const tempColor = getPresetColor(colorNumber)
+  datasets.push({
+    label: removeBraces(CutoffEventTop.getUserNameById(Number(playerUid))),
+    data: allData,
+    borderWidth: 4,
+    borderColor: [tempColor.getRGBA(1)],
+    backgroundColor: [tempColor.getRGBA(0.2)],
+    pointBackgroundColor: tempColor.getRGBA(0),
+    pointBorderColor: tempColor.getRGBA(0),
+    pointStyle: false,
+    fill: false
+  })
+  colorNumber++
+
+  var data = { datasets: datasets }
+  return await drawTimeLineChart({ data, start: new Date(CutoffEventTop.startAt), end: new Date(CutoffEventTop.endAt), setStartToZero }, true)
+}
+/**
+ * 绘制单人单把出分（点阵图/散点图）
+ * @param cutoffEventTop 原始数据对象
+ * @param playerUid 玩家ID
+ * @param limit 过滤
+ */
+export async function drawSinglePointChart(cutoffEventTop: CutoffEventTop, playerUid: number, limit?: string) {
+    if (!cutoffEventTop) return new Canvas(1, 1);
+
+    // 调用提取出的逻辑获取数据
+    const diffs = getSinglePlayDiffs(cutoffEventTop.points, playerUid, limit);
+
+    if (diffs.length === 0) return new Canvas(1, 1);
+
+    // 转换为 Chart.js 需要的格式
+    const perPlayData = diffs.map(d => ({
+        x: new Date(d.time),
+        y: d.value
+    }));
+
+    const tempColor = getPresetColor(0);
+    const labelText = `${cutoffEventTop.getUserNameById(playerUid).replace(/\[[^\]]*\]/g, "")} - 单把出分${limit ? ` (${limit})` : ''}`;
+    const datasets = [{
+        label: labelText,
+        data: perPlayData,
+        backgroundColor: tempColor.getRGBA(0.6),
+        borderColor: tempColor.getRGBA(0.6),
+        pointRadius: 1.5,
+        pointBorderWidth: 1,
+        pointHoverRadius: 3,
+        showLine: false,
+        fill: false
+    }];
+
+    const data = { datasets: datasets };
+
+    return await drawTimeLineChart({
+        data,
+        start: new Date(cutoffEventTop.startAt),
+        end: new Date(cutoffEventTop.endAt),
+        setStartToZero: false,
+        setYStartToZero: false,
+    }, true);
 }

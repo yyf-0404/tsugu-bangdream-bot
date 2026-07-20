@@ -20,6 +20,8 @@ interface drawTimeLineChartOptions {
   start: Date;
   end: Date;
   setStartToZero?: boolean;
+  setYStartToZero?: boolean;
+  useSegmentDash?: boolean;
   data: {
     datasets: any[];
   };
@@ -27,7 +29,7 @@ interface drawTimeLineChartOptions {
 
 // 6. 主函数：生成时间轴图表
 export async function drawTimeLineChart(
-  { start, end, setStartToZero = false, data }: drawTimeLineChartOptions,
+  { start, end, setStartToZero = false, setYStartToZero = true, useSegmentDash = true, data }: drawTimeLineChartOptions,
   displayLabel = false
 ) {
   const width = 800;
@@ -43,6 +45,20 @@ export async function drawTimeLineChart(
       Math.max(...dataset.data.map((pt: any) => pt.y))
     )
   );
+  const yMin = setYStartToZero ? 0 : Math.max(
+    ...data.datasets.map((dataset: any) =>
+      Math.min(...dataset.data.map((pt: any) => pt.y))
+    )
+  );
+  if (useSegmentDash) {
+    const borderDash = (context: any) => {
+      const diffHours = (context.p1.parsed.x - context.p0.parsed.x) / (1000 * 60 * 60)
+      return diffHours > 2 ? [6, 4] : []
+    }
+    data.datasets.forEach((dataset: any) => {
+      dataset.segment = { ...dataset.segment, borderDash }
+    })
+  }
 
   // 9. 配置 Chart.js 选项
   const options = {
@@ -67,7 +83,7 @@ export async function drawTimeLineChart(
         display: !setStartToZero,
       },
       y: {
-        min: 0,
+        min: (setYStartToZero || yMin < 1000) ? 0 : (yMin - 1000) * 0.9,
         max: (yMax + 1000) * 1.1,
       },
     },

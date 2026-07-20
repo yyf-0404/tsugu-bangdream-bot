@@ -12,29 +12,33 @@ import { serverNameFullList } from '@/config';
 import { drawEventDatablock } from '@/components/dataBlock/event';
 import { statusName } from '@/config';
 import { loadImageFromPath } from '@/image/utils';
+import mainAPI from '@/types/_Main';
 
 export async function drawCutoffDetail(eventId: number, tier: number, mainServer: Server, compress: boolean): Promise<Array<Buffer | string>> {
+    if (!mainAPI['events'][`${eventId}`]['endAt'][mainServer]) return [`错误: ${serverNameFullList[mainServer]} 活动不存在或未举办`]
+    var event = new Event(eventId)
     var cutoff = new Cutoff(eventId, mainServer, tier)
     if (cutoff.isExist == false) {
         return [`错误: ${serverNameFullList[mainServer]} 活动或档线不存在`]
     }
     await cutoff.initFull()
+    if(!cutoff.latestCutoff) return [`错误: ${serverNameFullList[mainServer]} 活动或档线暂不存在`]
     /*
     if (cutoff.isExist == false) {
         return '错误: 活动或档线数据错误'
     }
     */
+
     var all = []
     all.push(drawTitle('预测线', `${serverNameFullList[mainServer]} ${cutoff.tier}档线`))
     var list: Array<Image | Canvas> = []
-    var event = new Event(eventId)
     all.push(await drawEventDatablock(event, [mainServer]))
 
     //状态
     var time = new Date().getTime()
 
 
-    //如果活动在进行中    
+    //如果活动在进行中
     if (cutoff.status == 'in_progress') {
         if (cutoff.predictEP == null || cutoff.predictEP == 0) {
             var predictText = '?'
@@ -52,6 +56,7 @@ export async function drawCutoffDetail(eventId: number, tier: number, mainServer
                 key: '预测线',
                 text: predictText
             }),
+
             drawList({
                 key: '当前时速',
                 text: `${Math.round((cutoff.latestCutoff.ep - lastep) / timeSpan)} pt/h`
@@ -77,14 +82,24 @@ export async function drawCutoffDetail(eventId: number, tier: number, mainServer
 
         list.push(drawListMerge(tempImageList)) //合并两个list
         list.push(line)
-
+        const tempList = []
         //活动剩余时间
-        list.push(drawList({
+
+        tempList.push(drawList({
             key: '活动剩余时间',
             text: `${changeTimePeriodFormat(cutoff.endAt - time)}`
         }))
+        tempList.push(drawList({
+            key: '线性外推',
+            text: (cutoffs[cutoffs.length - 1])?Math.round(((cutoff.latestCutoff.ep - lastep) / timeSpan) * ((event.endAt[mainServer] - cutoffs[cutoffs.length - 1].time) / 3600000) + cutoffs[cutoffs.length - 1].ep).toString():'无数据'
+        })),
+        list.push(drawListMerge(tempList))
         list.push(line)
-
+        list.push(drawList({
+            key: '日增速',
+            text: `${cutoff.dailyIncrement.join('/')}\n${cutoff.getYesterdayIncrementRate()}`
+        }))
+        list.push(line) // 下面有一个pop
     }
     else if (cutoff.status == 'ended') {
         list.push(drawList({
@@ -98,6 +113,13 @@ export async function drawCutoffDetail(eventId: number, tier: number, mainServer
             key: '最终分数线',
             text: cutoff.latestCutoff.ep.toString()
         }))
+        list.push(line)
+        const tempList = []
+        tempList.push((await drawList({
+            key: '日增速',
+            text: `${cutoff.dailyIncrement.join('/')}`
+        })))
+        list.push(drawListMerge(tempList))
         list.push(line)
     }
     list.pop()

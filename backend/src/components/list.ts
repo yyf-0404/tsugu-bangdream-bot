@@ -31,6 +31,7 @@ interface ListOptions {
     color?: string;
     maxWidth?: number;
     align?: "top" | "bottom" | "center"
+    autoWrap?: boolean;
 }
 
 //画表格中的一行
@@ -244,7 +245,11 @@ export async function drawListByServerList(content: Array<string | null>, key?: 
 
 
 //横向组合较短list，高度为最高的list，宽度平分
-export function drawListMerge(imageList: Array<Canvas | Image>, maxWidth: number = 800, drawLine: boolean = false, align: "top" | "bottom" | "center" = "top"): Canvas {
+export function drawListMerge(imageList: Array<Canvas | Image>, maxWidth: number = 800, drawLine: boolean = false, align: "top" | "bottom" | "center" = "top", widthList?: number[]): Canvas {
+    const finalWidthList = widthList && widthList.length === imageList.length
+        ? widthList
+        : Array(imageList.length).fill(maxWidth / imageList.length)
+    const totalWidth = finalWidthList.reduce((sum, width) => sum + width, 0)
     var maxHeight = 0
     for (let i = 0; i < imageList.length; i++) {
         const element = imageList[i];
@@ -252,7 +257,7 @@ export function drawListMerge(imageList: Array<Canvas | Image>, maxWidth: number
             maxHeight = element.height
         }
     }
-    var canvas = new Canvas(maxWidth, maxHeight)
+    var canvas = new Canvas(totalWidth, maxHeight)
     var ctx = canvas.getContext('2d')
     var x = 0
     const line: Canvas = drawDottedLine({
@@ -281,7 +286,7 @@ export function drawListMerge(imageList: Array<Canvas | Image>, maxWidth: number
                 ctx.drawImage(line, x - 5, 0)
             }
         }
-        x += maxWidth / imageList.length
+        x += finalWidthList[i]
     }
     return canvas
 }
@@ -375,4 +380,3 @@ export function drawListWithLine(textImageList: Array<Canvas | Image>): Canvas {
     }
     return canvas
 }
-

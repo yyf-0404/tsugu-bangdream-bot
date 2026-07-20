@@ -39,12 +39,12 @@ export function getColorFromHex(hex: string): Color {
 }
 
 //用于图表的随机颜色
-const presetColorList = [
+export const presetColorList = [
     { r: 254, g: 65, b: 111 },  // 玫瑰红
     { r: 179, g: 49, b: 255 },  // 紫色
     { r: 64, g: 87, b: 227 },   // 宝石蓝
     { r: 68, g: 197, b: 39 },   // 草绿色
-    { r: 255, g: 255, b: 81 },  // 柠檬黄
+    { r: 255, g: 207, b: 73 },  // 黄
     { r: 0, g: 132, b: 255 },   // 天蓝色
     { r: 240, g: 128, b: 128 }, // 浅珊瑚色
     { r: 60, g: 179, b: 113 },  // 春绿色

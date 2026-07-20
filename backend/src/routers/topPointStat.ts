@@ -1,11 +1,10 @@
-import { drawCutoffDetail } from '@/view/cutoffDetail';
 import { Server, getServerByServerId } from '@/types/Server';
 import { getPresentEvent } from '@/types/Event';
 import { listToBase64 } from '@/routers/utils';
 import { isServer } from '@/types/Server';
 import { body } from 'express-validator';
 import express from 'express';
-import { drawTopRateDetail } from '@/view/cutoffEventTop';
+import { drawTopPointStat } from '@/view/cutoffEventTop';
 import { middleware } from '@/routers/middleware';
 import { Request, Response } from 'express';
 
@@ -18,18 +17,16 @@ router.post(
         body('eventId').optional().isInt(),
         body('playerId').optional().isInt(),
         body('tier').optional().isInt(),
-        body('day').optional().isInt(),
         body('limit').optional().isString(),
-        body('count').optional().isInt(),
         body('compress').optional().isBoolean(),
     ],
     middleware,
     async (req: Request, res: Response) => {
 
-        const { mainServer, eventId, playerId, tier, day, limit, count, compress } = req.body;
+        const { mainServer, eventId, playerId, tier, limit, compress } = req.body;
 
         try {
-            const result = await commandTopRateDetail(getServerByServerId(mainServer), eventId, playerId, tier, compress, day, limit, count);
+            const result = await commandTopPointStat(getServerByServerId(mainServer), eventId, playerId, tier, compress, limit);
             res.send(listToBase64(result));
         } catch (e) {
             console.log(e);
@@ -38,12 +35,12 @@ router.post(
     }
 );
 
-export async function commandTopRateDetail(mainServer: Server, eventId: number, playerId: number, tier: number, compress: boolean, day: number, limit: string, maxCount?: number): Promise<Array<Buffer | string>> {
+export async function commandTopPointStat(mainServer: Server, eventId: number, playerId: number, tier: number, compress: boolean, limit: string): Promise<Array<Buffer | string>> {
     if (!playerId && !tier) {
         return ['请输入玩家id或排名']
     }
     eventId ||= getPresentEvent(mainServer).eventId
-    return await drawTopRateDetail(eventId, playerId, tier, day, limit, maxCount, mainServer, compress)
+    return await drawTopPointStat(eventId, playerId, tier, limit, mainServer, compress)
 }
 
-export { router as topRateDetailRouter }
+export { router as topPointStatRouter }
