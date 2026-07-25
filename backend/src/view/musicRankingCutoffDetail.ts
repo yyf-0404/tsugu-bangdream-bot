@@ -12,6 +12,7 @@ import { drawEventDatablock } from '@/components/dataBlock/event';
 import { drawSongInList } from '@/components/list/song';
 import { drawTimeLineChart } from '@/components/chart_Timeline';
 import { getPresetColor } from '@/types/Color';
+import { calculateCurrentHourlyRate } from '@/utils/cutoffRate';
 
 export async function drawMusicRankingCutoffDetail(
     eventId: number,
@@ -41,14 +42,14 @@ export async function drawMusicRankingCutoffDetail(
         cutoff.predict();
         const predictText = cutoff.predictEP == null || cutoff.predictEP == 0 ? '?' : cutoff.predictEP.toString();
         const cutoffs = cutoff.cutoffs;
-        const lastep = cutoffs.length > 1 ? cutoffs[cutoffs.length - 2].ep : 0;
-        const timeSpan = (cutoffs.length > 1
-            ? cutoff.latestCutoff.time - cutoffs[cutoffs.length - 2].time
-            : cutoff.latestCutoff.time - cutoff.startAt) / (1000 * 3600);
+        const currentHourlyRate = calculateCurrentHourlyRate(cutoffs);
 
         list.push(drawListMerge([
             drawList({ key: '预测线', text: predictText }),
-            drawList({ key: '当前时速', text: `${Math.round((cutoff.latestCutoff.ep - lastep) / timeSpan)} pt/h` })
+            drawList({
+                key: '当前时速',
+                text: currentHourlyRate == null ? '?' : `${Math.round(currentHourlyRate)} pt/h`
+            })
         ]));
         list.push(line);
 

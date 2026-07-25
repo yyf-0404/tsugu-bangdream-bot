@@ -13,6 +13,7 @@ import { drawEventDatablock } from '@/components/dataBlock/event';
 import { statusName } from '@/config';
 import { loadImageFromPath } from '@/image/utils';
 import mainAPI from '@/types/_Main';
+import { calculateCurrentHourlyRate } from '@/utils/cutoffRate';
 
 export async function drawCutoffDetail(eventId: number, tier: number, mainServer: Server, compress: boolean): Promise<Array<Buffer | string>> {
     if (!mainAPI['events'][`${eventId}`]['endAt'][mainServer]) return [`错误: ${serverNameFullList[mainServer]} 活动不存在或未举办`]
@@ -49,8 +50,7 @@ export async function drawCutoffDetail(eventId: number, tier: number, mainServer
 
         //预测线和时速
         const cutoffs = cutoff.cutoffs
-        const lastep = cutoffs.length > 1 ? cutoffs[cutoffs.length - 2].ep : 0
-        const timeSpan = (cutoffs.length > 1 ? cutoff.latestCutoff.time - cutoffs[cutoffs.length - 2].time : cutoff.latestCutoff.time - cutoff.startAt) / (1000 * 3600)
+        const currentHourlyRate = calculateCurrentHourlyRate(cutoffs)
         list.push(drawListMerge([
             drawList({
                 key: '预测线',
@@ -59,7 +59,7 @@ export async function drawCutoffDetail(eventId: number, tier: number, mainServer
 
             drawList({
                 key: '当前时速',
-                text: `${Math.round((cutoff.latestCutoff.ep - lastep) / timeSpan)} pt/h`
+                text: currentHourlyRate == null ? '?' : `${Math.round(currentHourlyRate)} pt/h`
             })
         ]))
         list.push(line)
@@ -91,7 +91,12 @@ export async function drawCutoffDetail(eventId: number, tier: number, mainServer
         }))
         tempList.push(drawList({
             key: '线性外推',
-            text: (cutoffs[cutoffs.length - 1])?Math.round(((cutoff.latestCutoff.ep - lastep) / timeSpan) * ((event.endAt[mainServer] - cutoffs[cutoffs.length - 1].time) / 3600000) + cutoffs[cutoffs.length - 1].ep).toString():'无数据'
+            text: currentHourlyRate == null
+                ? '无数据'
+                : Math.round(
+                    currentHourlyRate * ((event.endAt[mainServer] - cutoff.latestCutoff.time) / 3600000)
+                    + cutoff.latestCutoff.ep
+                ).toString()
         })),
         list.push(drawListMerge(tempList))
         list.push(line)
