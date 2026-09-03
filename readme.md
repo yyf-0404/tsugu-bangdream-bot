@@ -94,6 +94,27 @@ npm install -g pm2
 pm2 start ecosystem.config.js
 ```
 
+### 内存监控
+
+后端默认每 60 秒输出一条 `[MemoryMonitor]` 日志。可以通过环境变量调整：
+
+```env
+MEMORY_MONITOR=true
+MEMORY_MONITOR_INTERVAL_MS=60000
+DEBUG_REQUEST_BODY=false
+```
+
+重点关注以下字段：
+
+- `rssMiB` 持续上涨但 `heapUsedMiB`、`externalMiB` 基本不变：优先排查 Canvas/Image 等原生内存。
+- `heapUsedMiB` 持续上涨：优先排查 JS 对象、闭包、队列和监听器。
+- `externalMiB` 或 `arrayBuffersMiB` 持续上涨：优先排查 Buffer 和二进制缓存。
+- `runtime.imageRender.active`、`runtime.chart.active` 或 `runtime.http.active` 长时间不归零：存在未结束的渲染或请求。
+- `runtime.chart.instances` 不归零：Chart.js 实例未完成销毁。
+- `detachedContexts` 持续上涨：存在 V8 上下文未释放。
+
+每条 `[Response]` 日志还会记录该请求开始到结束期间的 `rssΔ`、`heapΔ` 和 `externalΔ`。并发请求会相互影响这些差值，因此它适合定位可疑接口，不应单独作为泄漏结论。设置 `MEMORY_MONITOR=false` 可以关闭定时监控。
+
 ---
 
 <h2 align="center">📚 文档</h2>

@@ -35,9 +35,11 @@ import { searchCompositionRouter } from '@/routers/searchComposition';
 
 import { logger } from '@/logger'
 import * as dotenv from 'dotenv';
+import { startMemoryMonitor } from '@/monitoring/memoryMonitor';
 
 
 dotenv.config();
+startMemoryMonitor();
 
 
 const app = express();

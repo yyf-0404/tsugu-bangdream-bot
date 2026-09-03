@@ -3,6 +3,7 @@ import { assetsRootPath } from "@/config";
 import { Image, loadImage } from 'skia-canvas';
 import { downloadFile } from '@/api/downloadFile'
 import { loadImageFromPath } from '@/image/utils';
+import { recordAvatarCacheEntry } from '@/monitoring/memoryMonitor';
 
 let userIconCache = {};
 
@@ -24,6 +25,9 @@ export async function getUserIcon(avatarUrl?:string): Promise<Image> {
     try {
         const iconBuffer = await downloadFile(avatarUrl,false,true);
         const icon = await loadImage(iconBuffer);
+        if (!userIconCache[avatarUrl]) {
+            recordAvatarCacheEntry();
+        }
         userIconCache[avatarUrl] = icon;
         return icon;
     } catch (e) {
@@ -32,4 +36,3 @@ export async function getUserIcon(avatarUrl?:string): Promise<Image> {
         return icon;
     }
 }
-

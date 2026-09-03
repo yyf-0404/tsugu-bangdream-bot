@@ -3,6 +3,8 @@ import { CreateBG, CreateBGEazy } from '@/image/BG';
 import { assetsRootPath } from '@/config';
 import * as path from 'path';
 import { loadImageFromPath } from '@/image/utils';
+import { releaseCanvas } from '@/components/utils';
+import { beginImageRender } from '@/monitoring/memoryMonitor';
 
 
 var BGDefaultImage: Image
@@ -83,19 +85,42 @@ export var outputFinalBuffer = async function ({
     BGimage,
     compress,
 }: outputFinalOptions): Promise<Buffer> {
-    var tempcanv = await outputFinalCanv({
-        startWithSpace,
-        imageList,
-        useEasyBG,
-        text,
-        BGimage,
-    })
-    var tempBuffer: Buffer
-    if (compress != undefined && compress) {
-        tempBuffer = await tempcanv.toBuffer('jpeg', { quality: 0.7 })
+    var tempcanv: Canvas | undefined
+    let expectedHeight = startWithSpace ? 80 : 30
+    let expectedWidth = 0
+    for (const image of imageList) {
+        expectedHeight += image.height + 30
+        expectedWidth = Math.max(expectedWidth, image.width)
     }
-    else {
-        tempBuffer = await tempcanv.toBuffer('png')
+    const completeRender = beginImageRender(expectedWidth, expectedHeight)
+    let failed = false
+    let outputBytes = 0
+    try {
+        tempcanv = await outputFinalCanv({
+            startWithSpace,
+            imageList,
+            useEasyBG,
+            text,
+            BGimage,
+        })
+        var tempBuffer: Buffer
+        if (compress != undefined && compress) {
+            tempBuffer = await tempcanv.toBuffer('jpeg', { quality: 0.7 })
+        }
+        else {
+            tempBuffer = await tempcanv.toBuffer('png')
+        }
+        outputBytes = tempBuffer.length
+        return (tempBuffer)
+    } catch (error) {
+        failed = true
+        throw error
+    } finally {
+        completeRender(failed, outputBytes)
+        // The returned value is a Buffer, so the final canvas is no longer
+        // needed. Resetting it drops Skia's display list and references to all
+        // source canvases immediately instead of waiting for native GC.
+        releaseCanvas(tempcanv)
+        tempcanv = undefined
     }
-    return (tempBuffer)
 }

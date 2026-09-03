@@ -4,7 +4,8 @@ import { Canvas, FontLibrary, loadImage } from 'skia-canvas';
 import 'chartjs-adapter-moment';
 import { assetsRootPath } from '@/config';
 import { assetErrorImageBuffer } from '@/image/utils';
-import { disposeChartButKeepingCanvas } from './utils';
+import { destroyChartButKeepingCanvas } from './utils';
+import { beginChartRender } from '@/monitoring/memoryMonitor';
 
 // 2. 注册 Chart.js 所有组件
 Chart.register(...registerables);
@@ -100,14 +101,20 @@ export async function drawTimeLineChart(
     },
   };
 
+  let chart: Chart | undefined;
+  const completeChartRender = beginChartRender();
+  let failed = false;
   try {
     // 11. 生成 Chart.js 图表
-    const chart = new Chart(ctx as any, config as any);
-    disposeChartButKeepingCanvas(chart)
+    chart = new Chart(ctx as any, config as any);
     // 12. 返回 skia-canvas 的 Image 对象
     return canvas
   } catch (e) {
+    failed = true;
     console.error(e);
     return loadImage(assetErrorImageBuffer);
+  } finally {
+    destroyChartButKeepingCanvas(chart);
+    completeChartRender(failed);
   }
 }

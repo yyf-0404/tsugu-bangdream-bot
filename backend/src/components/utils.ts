@@ -1,5 +1,7 @@
 import { Chart } from 'chart.js';
 import { Canvas, Image } from 'skia-canvas';
+import { logger } from '@/logger';
+import { recordCanvasReleased, recordChartDestroyed } from '@/monitoring/memoryMonitor';
 
 export function stackImage(list: Array<Image | Canvas>) {
     var maxW = 0
@@ -65,17 +67,40 @@ export function resizeImage({
     ctx.drawImage(image, 0, 0, width, height)
     return canvas
 }
-export function disposeChartButKeepingCanvas(chart: any) {     // chart.js 的destroy() 6420行，仿照着写但是不销毁Canvas
-  chart.notifyPlugins?.('beforeDestroy');
+export function destroyChartButKeepingCanvas(chart: Chart | undefined): void {
+    if (!chart) return;
 
-  chart._stop?.();
-  chart.config?.clearCache?.();
-  chart.unbindEvents?.();
+    try {
+        // Chart.destroy() normally clears its canvas. Detach it first so the
+        // rendered pixels remain available to the caller, while the rest of
+        // Chart.js still follows its public destruction lifecycle.
+        if (chart.canvas) {
+            (chart as any).unbindEvents?.();
+        }
+        (chart as any).canvas = null;
+        (chart as any).ctx = null;
+        chart.destroy();
+    } catch (error) {
+        logger('ChartDestroy', `Failed to destroy chart: ${error}`);
+    } finally {
+        recordChartDestroyed(Object.keys(Chart.instances).length);
+    }
+}
 
-  delete Chart.instances[chart.id];
-
-  chart.canvas = null;
-  chart.ctx = null;
-
-  chart.notifyPlugins?.('afterDestroy');
+export function releaseCanvas(canvas: Canvas | undefined): void {
+    if (!canvas) return;
+    const width = canvas.width;
+    const height = canvas.height;
+    let failed = false;
+    try {
+        const context = canvas.getContext('2d');
+        context?.reset?.();
+        canvas.width = 0;
+        canvas.height = 0;
+    } catch (error) {
+        failed = true;
+        logger('CanvasRelease', `Failed to release canvas: ${error}`);
+    } finally {
+        recordCanvasReleased(width, height, failed);
+    }
 }
