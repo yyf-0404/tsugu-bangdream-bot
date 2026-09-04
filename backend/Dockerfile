@@ -8,13 +8,6 @@ COPY package*.json ./
 # 安装项目声明的依赖
 RUN npm ci
 
-# ---- 安装缺失的依赖和类型定义（这些可能不在 package.json 中） ----
-# 类型定义（帮助 tsc 识别模块）
-RUN npm install -D @types/node @types/express @types/axios @types/mongodb @types/dotenv @types/express-validator @types/body-parser @types/chart.js @types/xlsx
-
-# 全局安装 TypeScript 编译器（或使用项目本地，但这里确保有 tsc 命令）
-RUN npm install -g typescript
-
 # 复制源码和配置
 COPY tsconfig.json ./
 COPY src ./src
@@ -36,8 +29,8 @@ RUN echo '{\
   }\
 }' > tsconfig.loose.json
 
-# 编译 TypeScript → dist，使用宽松配置并忽略弃用警告，且出错仍然生成 JS
-RUN tsc --project tsconfig.loose.json --ignoreDeprecations 6.0 --noEmitOnError false
+# 编译 TypeScript → dist，使用 lockfile 中的项目编译器，且出错仍然生成 JS
+RUN ./node_modules/.bin/tsc --project tsconfig.loose.json --noEmitOnError false
 
 # 处理路径别名（如果使用 tsc-alias，安装并运行）
 RUN npx --yes tsc-alias -p tsconfig.loose.json
