@@ -21,7 +21,8 @@
   ],
   "license": "MIT",
   "scripts": {
-    "start": "ts-node -r tsconfig-paths/register src/app.ts"
+    "start": "ts-node -r tsconfig-paths/register src/app.ts",
+    "diagnose:memory": "node --expose-gc dist/diagnostics/skiaMemoryProbe.js"
   },
   "keywords": [
     "chatbot",

@@ -42,8 +42,13 @@ RUN tsc --project tsconfig.loose.json --ignoreDeprecations 6.0 --noEmitOnError f
 # 处理路径别名（如果使用 tsc-alias，安装并运行）
 RUN npx --yes tsc-alias -p tsconfig.loose.json
 
+# 仅供独立内存诊断探针调用。正式服务不会加载或调用该模块。
+RUN cc -O2 -shared -fPIC -I/usr/local/include/node \
+    src/diagnostics/malloc_trim.c \
+    -o dist/diagnostics/malloc_trim.node
+
 # 运行阶段
-FROM node:20-slim
+FROM node:20-slim AS runtime-base
 # 安装 skia-canvas 所需的系统库
 RUN apt-get update && apt-get install -y \
     libfontconfig1 \
@@ -68,6 +73,16 @@ RUN npm ci --only=production
 COPY --from=builder /build/dist ./dist
 COPY --from=builder /build/config ./config
 COPY --from=builder /build/assets ./assets
+
+# 可选诊断镜像：只有显式使用 --target diagnostics 时才安装 heaptrack。
+FROM runtime-base AS diagnostics
+RUN apt-get update && apt-get install -y --no-install-recommends heaptrack \
+    && rm -rf /var/lib/apt/lists/*
+
+CMD ["npm", "run", "diagnose:memory"]
+
+# 默认最终阶段仍是精简的正式运行镜像。
+FROM runtime-base AS runtime
 
 EXPOSE 3000
 

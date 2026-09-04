@@ -1,6 +1,7 @@
 import { PerformanceObserver } from 'node:perf_hooks';
 import * as v8 from 'node:v8';
 import { logger } from '@/logger';
+import { getLinuxMemorySnapshot } from '@/monitoring/linuxMemory';
 
 type Completion = (failed?: boolean) => void;
 
@@ -144,6 +145,7 @@ export function startMemoryMonitor(): () => void {
                 count: gcCount,
                 durationMs: Math.round(gcDurationMs * 100) / 100,
             },
+            linux: getLinuxMemorySnapshot(),
             runtime: runtimeMetrics,
         };
         previousRss = memory.rss;
