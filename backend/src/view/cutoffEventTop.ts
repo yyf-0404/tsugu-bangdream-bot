@@ -154,7 +154,7 @@ export async function drawTopRateDetail(eventId: number, playerId: number, tier:
                     score = playerRating[i].value - playerRating[i + 1].value
                 if (score > max || score < min) continue;
                 count += 1
-                const timeImage = drawList({ text: `${mid.toTimeString().slice(0, 5)}` })
+                const timeImage = drawList({ text: `${mid.toTimeString().slice(0, 8)}` })
                 const ctx = timeImage.getContext('2d')
                 ctx.font = "18px old,Microsoft Yahei"
                 ctx.fillText(`${mid.getMonth() + 1}.${mid.getDate()}`, 50, 13)
@@ -359,11 +359,13 @@ export async function drawTopRateDetail(eventId: number, playerId: number, tier:
     const timeList = [1, 3, 12, 24]
     {
         const list = [], now = Date.now()
-        list.push(drawListMerge([drawList({ key: '时间' }), drawList({ key: '分数变动次数' }), drawList({ key: '平均时间间隔' }), drawList({ key: '平均分数' })], widthMax))
+        // 秒级时间范围需要更宽的首列，表头和数据行使用相同列宽。
+        const columnWidths = [350, 225, 225, 200]
+        list.push(drawListMerge([drawList({ key: '时间' }), drawList({ key: '分数变动次数' }), drawList({ key: '平均时间间隔' }), drawList({ key: '平均分数' })], widthMax, false, 'top', columnWidths))
         for (const a of timeList) {
             const begin = now - a * 60 * 60 * 1000
             const st = new Date(begin), ed = new Date(now)
-            const timeImage = drawList({ text: `${st.toTimeString().slice(0, 5)}~${ed.toTimeString().slice(0, 5)}` })
+            const timeImage = drawList({ text: `${st.toTimeString().slice(0, 8)}~${ed.toTimeString().slice(0, 8)}` })
             const offset = Math.floor((now / 1000 / 60 - st.getTimezoneOffset()) / 24 / 60) - Math.floor((begin / 1000 / 60 - st.getTimezoneOffset()) / 24 / 60)
             // console.log(st.getTimezoneOffset())
             if (offset > 0) {
@@ -388,10 +390,10 @@ export async function drawTopRateDetail(eventId: number, playerId: number, tier:
                     break
             }
             if (flag) {
-                list.push(drawListMerge([timeImage, drawList({ text: '数据不足' })], widthMax))
+                list.push(drawListMerge([timeImage, drawList({ text: '数据不足' })], widthMax, false, 'top', [columnWidths[0], widthMax - columnWidths[0]]))
             } else {
                 const averageTime = getAverageTime(timestamps)
-                list.push(drawListMerge([timeImage, drawList({ text: `${count}` }), drawList({ text: timestamps.length <= 1 ? '-' : `${(new Date(averageTime)).toTimeString().slice(3, 8)}` }), drawList({ text: count == 0 ? '-' : `${Math.floor(sumScore / count)}` })], widthMax))
+                list.push(drawListMerge([timeImage, drawList({ text: `${count}` }), drawList({ text: timestamps.length <= 1 ? '-' : `${(new Date(averageTime)).toTimeString().slice(3, 8)}` }), drawList({ text: count == 0 ? '-' : `${Math.floor(sumScore / count)}` })], widthMax, false, 'top', columnWidths))
             }
             list.push(line)
         }
