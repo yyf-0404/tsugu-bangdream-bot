@@ -94,6 +94,20 @@ npm install -g pm2
 pm2 start ecosystem.config.js
 ```
 
+### 排名数据源
+
+在 `backend/.env` 中使用 `RANKING_SOURCES` 为各服务器填写地址列表，按列表顺序请求和回退，可以同时配置多个 GarupaSpeedTracker 实例及其他兼容接口的服务：
+
+```env
+RANKING_SOURCES='{"cn":["https://cn-a.example.com","https://cn-b.example.com","https://bestdori.com"],"jp":["https://jp.example.com"],"global":["https://cn-a.example.com"]}'
+```
+
+地址填写到 `/api` 之前，无需为数据源指定类别或名称。该列表用于活动档线、活动前十、月榜和歌榜；各服务需要提供对应的查询接口。前十查询会先尝试 V2 历史接口，再尝试同一地址的兼容接口；没有有效数据时继续下一个地址，V2 明确返回的成功空榜会保留。
+
+服务器键为 `jp`、`en`、`tw`、`cn`、`kr`，`global` 用于月榜元数据。设置 `default` 可为所有未单独配置的查询指定统一列表，例如 `RANKING_SOURCES='{"default":["https://ranking.example.com"]}'`。未设置 `default` 的服务器继续使用内置配置；显式填写 `[]` 会禁用相应列表，不会追加内置数据源。修改 `.env` 后重启后端生效。
+
+旧的 `RANKING_API_BASE_URL` 和源码中的地址别名仍然兼容；新配置的优先级更高。
+
 ### 内存监控
 
 后端默认每 60 秒输出一条 `[MemoryMonitor]` 日志。可以通过环境变量调整：

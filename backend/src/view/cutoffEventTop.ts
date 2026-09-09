@@ -19,7 +19,8 @@ import { resizeImage } from '@/components/utils';
 import { stackImage } from '@/components/utils';
 import { drawRoundedRectWithText } from "@/image/drawRect";
 import { presetColorList } from "@/types/Color";
-import { MonthlyRankingCutoffTop } from "@/types/MonthlyRankingCutoff";
+import { getRatingByPlayer, getTopRatingDuringTime } from '@/types/TopRanking';
+export { getRatingByPlayer, getTopRatingDuringTime } from '@/types/TopRanking';
 
 export async function drawCutoffEventTop(eventId: number, mainServer: Server, compress: boolean): Promise<Array<Buffer | string>> {
     var cutoffEventTop = new CutoffEventTop(eventId, mainServer);
@@ -553,10 +554,12 @@ export async function drawTopRateRanking(eventId: number, mainServer: Server, co
 
     let list = []
     const top10SpeedRankingData = getTopRatingDuringTime(cutoffEventTop, time, date, compareTier, comparePlayerUid);
-    const compareName = compareTier ? cutoffEventTop.getUserNameById(cutoffEventTop.getLatestRanking()[compareTier - 1].uid) : (comparePlayerUid ? cutoffEventTop.getUserNameById(comparePlayerUid) : null);
+    if (!top10SpeedRankingData.length) return ['错误: 在指定时间未找到有效的排名数据'];
+    if (compareTier && !top10SpeedRankingData[compareTier - 1]) return [`错误: 档位${compareTier}不存在`];
+    const compareName = compareTier ? top10SpeedRankingData[compareTier - 1].name : (comparePlayerUid ? cutoffEventTop.getUserNameById(comparePlayerUid) : null);
     const headerStringArray = ['排名', 'uid', 'id', '分数', '分差', compareName ? `与${compareName}分差` : null, `${time}min分数变化`, '速度排名', '分数变动次数', '前空白', '尾空白', '把均pt', '当前数据获取时间', '上次数据获取时间']
     //const headerStringArray = ['順位', 'uid', 'id', 'ポイント', '上との差', compareName ? `${compareName}さんと差` : null, `${time}時速`, '時速ランキング', '今の時間', '1hスタート時間']
-    const top10RankingTable: Canvas[][] = Array.from({ length: 10 }, () => []);
+    const top10RankingTable: Canvas[][] = top10SpeedRankingData.map(() => []);
     const drawWidth = []
     const header: Canvas[] = [];
     headerStringArray.forEach((value, index) => {
@@ -571,9 +574,9 @@ export async function drawTopRateRanking(eventId: number, mainServer: Server, co
         const width = [];
         const height = [];
         //对每一个排名进行遍历
-        for (let i = 0; i < 10; i++) {
+        for (let i = 0; i < top10SpeedRankingData.length; i++) {
             //绘制字段图并存储各个宽度
-            const img = drawList({ text: String(top10SpeedRankingData[i][value] || '---') });
+            const img = drawList({ text: String(top10SpeedRankingData[i][value] ?? '---') });
             width.push(img.width);
             height.push(img.height);
             top10RankingTable[i].push(img);
@@ -639,14 +642,7 @@ export async function drawTopTenMinuteSpeed(eventId: number, mainServer: Server,
     let rankingMap = new Map<number, number>();
 
     let topTenUids = new Set<number>();
-    let currentRanking: { uid: number; value: number }[] = [];
-    if (!date) {
-        currentRanking = cutoffEventTop.getLatestRanking().slice(0, 10).map(r => ({ uid: r.uid, value: r.point }));
-    } else {
-        const sortedPoints = [...cutoffEventTop.points].sort((a, b) => a.time - b.time);
-        const group = findTargetTimeRankingGroup(sortedPoints, targetTime);
-        currentRanking = group.sort((a, b) => b.value - a.value).slice(0, 10);
-    }
+    const currentRanking = cutoffEventTop.getRankingAt(targetTime);
     topTenUids = new Set(currentRanking.map(r => r.uid));
 
     if (allPlayer) {
@@ -740,7 +736,7 @@ export async function drawTopTenMinuteSpeed(eventId: number, mainServer: Server,
 
     for (let tIdx = displayTimeStamps.length - 1; tIdx >= 0; tIdx--) {
         const row: Canvas[] = [];
-        const timeStr = new Date(displayTimeStamps[tIdx]).toTimeString().slice(0, 5);
+        const timeStr = new Date(displayTimeStamps[tIdx]).toTimeString().slice(0, 8);
         const timeImg = drawList({ text: timeStr });
         row.push(timeImg);
         colWidths[0] = Math.max(colWidths[0], timeImg.width);
@@ -1038,107 +1034,6 @@ export async function drawTopPointStat(eventId: number, playerId: number, tier: 
     return [buffer];
 }
 
-//points按时间分数升序排列
-export function getRatingByPlayer(points: Array<{
-    time: number,
-    uid: number,
-    value: number
-}>, playerId: number) {
-    const map = {}
-    let tmpTime = -1, counts = 0;
-    for (const info of points) {
-        //极大性能开销，弃用
-        //if (points.filter(p => p.time === info.time).length !== 10) continue;
-        if (map[info.time] == undefined)
-            map[info.time] = -1
-        if (info.uid == playerId)
-            map[info.time] = info.value
-        if (info.time !== tmpTime) {
-            //防bd插入单独数据(2025.11.4 03:00:01仅出现t1玩家数据 导致其他t10玩家point列表出现-1)
-            if (tmpTime !== -1 && counts !== 10) {
-                delete map[tmpTime];
-            }
-            tmpTime = info.time;
-            counts = 1;
-        } else {
-            counts++;
-        }
-    }
-    if (counts !== 10) delete map[tmpTime];
-
-    const timestamp = Object.keys(map)
-    return timestamp.sort((a, b) => parseInt(b) - parseInt(a)).map((t) => {
-        return {
-            time: parseInt(t),
-            value: map[t]
-        }
-    })
-}
-
-export function getTopRatingDuringTime(cutoffTop: CutoffEventTop | MonthlyRankingCutoffTop, windowTimeLimit: number = 60, date: Date, compareTier: number, comparePlayerUid: number) {
-    const limitPoints = date ? cutoffTop.points.filter(item => item.time <= date.getTime()) : cutoffTop.points;
-    const now = limitPoints.at(-1).time;
-    const top10List: { uid: number, point: number }[] = limitPoints.slice(-10).map(({ uid, value }) => ({
-        uid,
-        point: value
-    }));
-    const top10_Old: {
-        time: number,
-        uid: number,
-        value: number
-    }[] = findTargetTimeRankingGroup(limitPoints, now - windowTimeLimit * 60 * 1000);
-    const old_time = top10_Old?.[0]?.time;
-    const top10_ranking: {
-        ranking: number,
-        uid: number,
-        name: string,
-        point: number,
-        distanceToAbove: number,
-        distanceToPlayer: number,
-        speedInTime: number,
-        speedRanking: number,
-        playTimes: number,
-        firstTime: string,
-        lastTime: string,
-        averagePoints: number,
-        nowTime: string,
-        oldTime: string,
-    }[] = [];
-    const speed: { uid: number, speed: number, speedRanking: number }[] = computeSpeed(top10List, top10_Old)
-    if (!top10_Old?.length) return null;
-
-    top10List.forEach((info, index) => {
-        const uid = info.uid;
-        const nowPoints = info.point;
-        const oldData = top10_Old.find(item => item.uid == uid);
-        const comparePlayerPoints = compareTier ? (top10List?.[compareTier - 1]?.point) : (comparePlayerUid ? top10List.find(item => item.uid == comparePlayerUid)?.point : 0);
-        const playerSpeedInfo = speed.find(item => item.uid == uid);
-        const playerTimesInfo = countSpeedData(getRatingByPlayer(limitPoints.filter(item => item.time >= old_time), uid))
-        const fmt = new Intl.DateTimeFormat('zh-CN', {
-            timeZone: 'Asia/Shanghai',
-            dateStyle: 'medium',
-            timeStyle: 'medium'
-        });
-        top10_ranking.push({
-            ranking: index + 1,
-            uid: uid,
-            name: cutoffTop.getUserNameById(uid),
-            point: nowPoints,
-            distanceToAbove: index == 0 ? 0 : top10List[index - 1].point - nowPoints,
-            distanceToPlayer: comparePlayerPoints ? nowPoints - comparePlayerPoints : 0,
-            speedInTime: playerSpeedInfo.speed,
-            speedRanking: playerSpeedInfo.speedRanking,
-            playTimes: playerTimesInfo.count,
-            firstTime: playerTimesInfo.firstTime > 0 ? `${Math.round((playerTimesInfo.firstTime - old_time) / (60 * 1000))}min` : '',
-            lastTime: playerTimesInfo.lastTime > 0 ? `${Math.round((playerTimesInfo.lastTime - now) / (60 * 1000))}min` : '',
-            averagePoints: playerTimesInfo.count > 0 ? Math.floor(playerSpeedInfo.speed / playerTimesInfo.count) : 0,
-            nowTime: fmt.format(new Date(now)),
-            oldTime: fmt.format(new Date(old_time))
-        })
-    })
-    return top10_ranking;
-}
-
 export function getAverageTime(timestamps: Array<number>) {
     let res = 0
     for (let i = 0; i < timestamps.length >> 1; i += 1)
@@ -1148,103 +1043,6 @@ export function getAverageTime(timestamps: Array<number>) {
     return res / (timestamps.length >> 1) / (timestamps.length + 1 >> 1)
 }
 
-function findTargetTimeRankingGroup(
-    sorted: { time: number; uid: number; value: number }[],
-    targetTime: number
-): { time: number; uid: number; value: number }[] {
-    let left = 0, right = sorted.length - 1;
-    let index = -1;
-
-    // 找最后一个 time < targetTime
-    while (left <= right) {
-        const mid = (left + right) >> 1;
-        if (sorted[mid].time < targetTime) {
-            index = mid;
-            left = mid + 1;
-        } else {
-            right = mid - 1;
-        }
-    }
-
-    // 如果没找到，则使用最小的那个
-    if (index === -1) index = 0;
-
-    const groupTime = sorted[index].time;
-
-    // 向前找到这个 time 的起始下标
-    let start = index;
-    while (start > 0 && sorted[start - 1].time === groupTime) {
-        start--;
-    }
-
-    // 向后找到这个 time 的结束下标
-    let end = index;
-    while (end + 1 < sorted.length && sorted[end + 1].time === groupTime) {
-        end++;
-    }
-
-    return sorted.slice(start, end + 1);
-}
-
-
-function computeSpeed(
-    top10List: { uid: number; point: number }[],
-    top10_Old: { time: number; uid: number; value: number }[]
-): { uid: number; speed: number; speedRanking: number }[] {
-    const speed: { uid: number; speed: number; speedRanking: number }[] = [];
-    //无数据的默认值
-    const fallbackValue = top10_Old.at(-1)?.value ?? 0;
-    //创建map集合方便查询
-    const oldValueMap = new Map<number, number>();
-    for (const { uid, value } of top10_Old) {
-        oldValueMap.set(uid, value);
-    }
-    for (const { uid, point } of top10List) {
-        const oldPoint = oldValueMap.get(uid) ?? fallbackValue;
-        speed.push({ uid, speed: point - oldPoint, speedRanking: 0 });
-    }
-    speed.sort((a, b) => b.speed - a.speed);
-    for (let i = 0; i < speed.length; i++) {
-        speed[i].speedRanking = speed[i].speed > 0 ? i + 1 : 0;
-    }
-    return speed;
-}
-
-function countSpeedData(playerPoints: { time: number; value: number }[]) {
-    let firstTime = 0;
-    let lastTime = 0;
-    let count = -1;
-    let tmpPoint = 0;
-    let init = false;
-    for (const data of playerPoints.reverse()) {
-
-        if (data.value == -1) {
-            return { firstTime: -1, lastTime: -1, count: -1 };
-        }
-        if (data?.value != tmpPoint) {
-            if (init && !firstTime) {
-                firstTime = data.time;
-            }
-            if (tmpPoint == 0 && data.value > 0) {
-                init = true;
-            }
-            lastTime = data.time;
-            count += 1;
-            if (data.value > 0)
-                tmpPoint = data.value;
-        }
-    }
-    if (count == 0)
-        return { firstTime: -1, lastTime: -1, count: 0 };
-    return { firstTime: firstTime, lastTime: lastTime, count: count };
-}
-
-/**
- * 判断哪些玩家在同一房间
- * @param players 玩家数据列表
- * @param similarityThreshold 相似度阈值 (0-1)，越高越严格。
- * 因为是严格同时结算，建议设定在 0.8 - 0.9 之间以容忍极个别分钟的数据缺失。
- */
 function identifyRooms(players: any[], similarityThreshold = 0.9) {
     // 1. 将玩家的 speeds 转换为二进制节奏序列 (1表示有分变动, 0表示无)
     const playerRhythms = players.map(p => ({

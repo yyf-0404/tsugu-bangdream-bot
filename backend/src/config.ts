@@ -2,6 +2,7 @@ import * as path from 'path';
 import { Server } from '@/types/Server';
 import { logger } from './logger';
 import * as dotenv from 'dotenv';
+import { parseRankingSources, resolveRankingSources } from '@/api/rankingSourceConfig';
 
 dotenv.config();
 
@@ -46,12 +47,15 @@ export const STAR_VIEWER_Url: string = process.env.RANKING_API_BASE_URL || 'http
 export var USE_STAR_VIEWER_SOURCE_PREFER = true;   // 是否优先使用STAR_VIEWER的Tracker数据
 
 // ===== 数据源回退链配置 =====
-// 数据源key → URL映射
+// 旧配置的地址别名；别名不决定接口类型，新配置可直接填写任意基础地址。
 export const SOURCE_URL_MAP: Record<string, string> = {
     "star_viewer": STAR_VIEWER_Url,
     "bestdori": Bestdoriurl,
     "hhwx": HHWX_Url
 };
+
+// 按服务器覆盖所有排名查询的地址列表；缺省时保留原有回退顺序。
+const rankingSourceOverrides = parseRankingSources(process.env.RANKING_SOURCES, SOURCE_URL_MAP);
 
 // 活动档线数据源回退链（按服务器，越靠前优先级越高）
 export const EVENTRANKING_TURNS: Record<string, string[]> = {
@@ -75,10 +79,9 @@ export const MONTHRANKING_TURNS: Record<string, string[]> = {
     "default": ["star_viewer"]
 };
 
-// 统一解析：将server和turns配置转换为 {url, name} 数组
+// 统一解析：服务器专用列表 > 自定义 default > 各类排名的内置列表。
 export function resolveSourceUrls(server: string, turnsConfig: Record<string, string[]>): {url: string, name: string}[] {
-    const keys = turnsConfig[server] || turnsConfig["default"] || ["bestdori"];
-    return keys.map(key => ({ url: SOURCE_URL_MAP[key], name: key }));
+    return resolveRankingSources(server, turnsConfig, rankingSourceOverrides, SOURCE_URL_MAP);
 }
 
 const enableAutoTrackerDataSourceSwitch = true  // 是否开启数据源优先自动切换

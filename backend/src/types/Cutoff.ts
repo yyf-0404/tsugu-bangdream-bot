@@ -1,6 +1,6 @@
 import { callAPIAndCacheResponse } from '@/api/getApi';
 import mainAPI from '@/types/_Main';
-import { Bestdoriurl, STAR_VIEWER_Url, USE_HHWX_SOURCE_PREFER, USE_STAR_VIEWER_SOURCE_PREFER, EVENTRANKING_TURNS, resolveSourceUrls, tierListOfServer } from '@/config';
+import { Bestdoriurl, USE_HHWX_SOURCE_PREFER, USE_STAR_VIEWER_SOURCE_PREFER, EVENTRANKING_TURNS, resolveSourceUrls, tierListOfServer } from '@/config';
 import { Server } from '@/types/Server';
 import { Event, getPresentEvent } from '@/types/Event';
 import { predict } from '@/api/cutoff.cjs'
@@ -72,20 +72,9 @@ export class Cutoff {
             this.status = 'in_progress'
         }
     }
-    getFinalApiUrl (reverse:boolean){   // reverse:是否反向获取。假如useHHWX/useSTAR_VIEWER为False，当反向开启后就使用对应数据源
-        if (this.server == Server.cn){  // 国服使用STAR_VIEWER优先，Bestdori作为临时回退
-            var url = !reverse ? STAR_VIEWER_Url : Bestdoriurl
-            return url
-        }
-        else if (this.server == Server.jp){  // 日服使用STAR_VIEWER优先，Bestdori作为临时回退
-            var url = !reverse ? STAR_VIEWER_Url : Bestdoriurl
-            return url
-        }
-        else {  // 其他服不使用回退数据源
-            this.useHHWX = false
-            this.useSTAR_VIEWER = false
-            return Bestdoriurl
-        }
+    getFinalApiUrl(reverse: boolean) {
+        const sources = this.getTrackerSources();
+        return sources[reverse ? 1 : 0]?.url ?? sources[0]?.url;
     }
     async getFinalCutoffsData (forceReadCache:boolean = false ){
         return await this.tryTrackerSources(forceReadCache);
@@ -95,17 +84,34 @@ export class Cutoff {
         return resolveSourceUrls(Server[this.server], EVENTRANKING_TURNS);
     }
 
-    private async tryTrackerSources(forceReadCache: boolean, startIndex: number = 0): Promise<object | null> {
+    private async tryTrackerSources(forceReadCache: boolean): Promise<object | null> {
         const cacheTime = forceReadCache ? 1/0 : 0;
         const sources = this.getTrackerSources();
+        const requireFresh = !forceReadCache && this.status === 'in_progress' && [Server.cn, Server.jp].includes(this.server);
+        const freshSince = Date.now() - 45 * 60 * 1000;
+        let fallback: object | null = null;
+        let newestTime = -Infinity;
 
-        for (let i = startIndex; i < sources.length; i++) {
+        for (let i = 0; i < sources.length; i++) {
             try {
                 const data = await callAPIAndCacheResponse(
                     `${sources[i].url}/api/tracker/data?server=${<number>this.server}&event=${this.eventId}&tier=${this.tier}`,
                     cacheTime, 3
                 );
-                if (data?.['result'] === false) continue;
+                if (data?.['result'] === false || !Array.isArray(data?.['cutoffs'])) continue;
+                if (!data['cutoffs'].length) {
+                    fallback ??= data;
+                    continue;
+                }
+                const latestTime = Number(data['cutoffs'].at(-1).time);
+                if (requireFresh && latestTime < freshSince) {
+                    if (latestTime > newestTime) {
+                        fallback = data;
+                        newestTime = latestTime;
+                    }
+                    logger('Cutoff.ts/tryTrackerSources', `${sources[i].name} 数据超过45分钟未更新，尝试下一个数据源`);
+                    continue;
+                }
                 return data;
             } catch (e) {
                 if (e.response?.status != 404) {
@@ -113,7 +119,7 @@ export class Cutoff {
                 }
             }
         }
-        return null;
+        return fallback;
     }
     async initFull() {
         if (this.isInitfull) {
@@ -130,29 +136,6 @@ export class Cutoff {
             if (!cutoffData){
                 this.isExist = false;
                 return
-            }
-            // var dateNow = Date.now()
-            if (this.server == Server.cn && cutoffData["cutoffs"] && cutoffData["cutoffs"].length!=0 && time - cutoffData["cutoffs"][cutoffData["cutoffs"].length-1].time >= 2700000){   // CN: STAR_VIEWER数据实时性校验不通过，尝试回退到Bestdori/HHWX
-                logger('Cutoff.ts/initFull', `CN数据源(STAR_VIEWER)数据实时性校验不通过(>45分钟)，尝试回退`)
-                var cutoffData2 = await this.tryTrackerSources(false, 1);
-                if (cutoffData2?.["cutoffs"]?.length && cutoffData2["cutoffs"][cutoffData2["cutoffs"].length-1].time > cutoffData["cutoffs"][cutoffData["cutoffs"].length-1].time){
-                    cutoffData = cutoffData2;
-                    logger('Cutoff.ts/initFull', `CN回退至Bestdori数据源，数据更新`)
-                } else {
-                    var cutoffData3 = await this.tryTrackerSources(false, 2);
-                    if (cutoffData3?.["cutoffs"]?.length && cutoffData3["cutoffs"][cutoffData3["cutoffs"].length-1].time > cutoffData["cutoffs"][cutoffData["cutoffs"].length-1].time){
-                        cutoffData = cutoffData3;
-                        logger('Cutoff.ts/initFull', `CN回退至HHWX数据源，数据更新`)
-                    }
-                }
-            }
-            if (this.server == Server.jp && cutoffData["cutoffs"] && cutoffData["cutoffs"].length!=0 && time - cutoffData["cutoffs"][cutoffData["cutoffs"].length-1].time >= 2700000){   // JP: STAR_VIEWER数据实时性校验不通过，尝试回退到Bestdori
-                logger('Cutoff.ts/initFull', `JP数据源(STAR_VIEWER)数据实时性校验不通过(>45分钟)，尝试回退`)
-                var cutoffData2 = await this.tryTrackerSources(false, 1);
-                if (cutoffData2?.["cutoffs"]?.length && cutoffData2["cutoffs"][cutoffData2["cutoffs"].length-1].time > cutoffData["cutoffs"][cutoffData["cutoffs"].length-1].time){
-                    cutoffData = cutoffData2;
-                    logger('Cutoff.ts/initFull', `JP回退至Bestdori数据源，数据更新`)
-                }
             }
         }
         else {
